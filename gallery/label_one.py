@@ -54,8 +54,8 @@ if __name__ == "__main__":
         + ")"
     )
 
-    print(perfect_query)
-    print(close_query)
+    # print(perfect_query)
+    # print(close_query)
 
     perfect_rows = cursor.execute(perfect_query, (provided_name,)).fetchall()
     close_rows = cursor.execute(
@@ -82,18 +82,20 @@ if __name__ == "__main__":
             if selected_int == 0:
                 if perfect_rows:
                     selected_id, _ = perfect_rows[0]
-                    model.set_person(conn, face_id, selected_id)
+                    model.set_person(
+                        conn, face_id, selected_id, model.PERSON_SOURCE_MANUAL
+                    )
                 else:
                     selected_id = model.new_person(conn, provided_name)
             else:
                 selected_id, selected_name = close_rows[i - 1]
 
-            model.set_person(conn, face_id, selected_id)
+            model.set_person(conn, face_id, selected_id, model.PERSON_SOURCE_MANUAL)
             break
 
     else:
         person_id = model.new_person(conn, provided_name)
-        model.set_person(conn, face_id, person_id)
+        model.set_person(conn, face_id, person_id, model.PERSON_SOURCE_MANUAL)
 
     cursor.close()
     conn.close()

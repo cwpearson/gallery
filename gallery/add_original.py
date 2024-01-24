@@ -221,6 +221,93 @@ def update_embeddings():
     conn.close()
 
 
+def update_labels():
+    """
+    Cluster all the embeddings with DBSCAN
+    This will produce a variety of clusters
+    Each face in the cluster may be labeled
+        - If so, assign each face in the cluster to the closest manually-labeled face in that cluster
+        - Otherwise, create a new anonymous person and assign all faces in the cluster to that person
+    """
+
+    conn = sqlite3.connect(model.DB_PATH)
+    cursor = conn.cursor()
+
+    # get all embeddings
+
+    # put through DBSCAN
+
+    embeddings, face_ids = model.all_embeddings(conn)
+
+    # X = np.array(embeddings[1])
+    # Y = np.array(embeddings[2:])
+    # print(face_recognition.face_distance(X, Y))
+    # sys.exit(1)
+
+    X = np.array(embeddings)
+
+    clustering = DBSCAN(eps=0.41, min_samples=2, metric="euclidean").fit(X)
+    # print(clustering.labels_)
+
+    clusters = {}
+    for xi, cluster_id in enumerate(clustering.labels_):
+        clusters[cluster_id] = clusters.get(cluster_id, []) + [xi]
+
+    print(clusters)
+
+    for cluster_id, xis in clusters.items():
+        if cluster_id == -1:
+            continue
+
+        print(f"processing cluster {cluster_id}")
+
+        cluster_labeled_faces = []
+        for xi in xis:
+            label, reason = model.get_person(conn, face_ids[xi])
+            if reason == model.PERSON_SOURCE_MANUAL:
+                cluster_labeled_faces += [(xi, label, reason)]
+
+        # print(cluster_labeled_faces)
+
+        # label each unlabeled face to the closest labeled face
+        if cluster_labeled_faces:
+            for xi in xis:
+                a, reason = model.get_person(conn, face_ids[xi])
+                if reason != model.PERSON_SOURCE_MANUAL:
+                    min_dist_label = None
+                    min_dist = 100000000  # big number
+                    for labeled_xi, label, _ in cluster_labeled_faces:
+                        if labeled_xi != xi:
+                            dist = face_recognition.face_distance(
+                                [np.array(embeddings[labeled_xi])],
+                                np.array(embeddings[xi]),
+                            )[0]
+                            # print(f"dist with {xi} is {dist}")
+                            if dist < min_dist:
+                                min_dist_label = label
+                                min_dist = dist
+
+                    current_person_id, _ = model.get_person(conn, face_ids[xi])
+                    if current_person_id != min_dist_label:
+                        print(
+                            f"updated unlabeled or auto-labeled xi={xi} to {min_dist_label}"
+                        )
+                        model.set_person(
+                            conn,
+                            face_ids[xi],
+                            min_dist_label,
+                            model.PERSON_SOURCE_AUTOMATIC,
+                        )
+                else:
+                    pass  # this face in this cluster was already labeled
+        else:
+            # print(f"no labels faces in cluster {cluster_id}")
+            pass
+
+    cursor.close()
+    conn.close()
+
+
 if __name__ == "__main__":
     # encodings = []
 
@@ -228,16 +315,7 @@ if __name__ == "__main__":
         p.map(add_original, sys.argv[1:])
 
     update_faces()
-    #     print(locations)
-    #     new_encodings = face_recognition.face_encodings(
-    #         image, known_face_locations=locations
-    #     )
-    #     encodings += new_encodings
 
     update_embeddings()
 
-    # print(len(encodings))
-    # X = np.array(encodings)
-    # clustering = DBSCAN(eps=0.41, metric="euclidian").fit(X)
-
-    # print(clustering.labels_)
+    update_labels()

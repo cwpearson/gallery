@@ -1,6 +1,12 @@
 from pathlib import Path
 import multiprocessing
 import sqlite3
+import json
+import numpy as np
+
+
+PERSON_SOURCE_MANUAL = 1
+PERSON_SOURCE_AUTOMATIC = 2
 
 CPUS = max(multiprocessing.cpu_count() - 1, 1)
 
@@ -40,6 +46,7 @@ def init():
             hidden INTEGER,
             extracted_path TEXT,
             person_id INTEGER,
+            person_source INTEGER,
             embedding_json TEXT
         )
     """
@@ -69,11 +76,39 @@ def new_person(conn: sqlite3.Connection, name) -> int:
     return cursor.lastrowid
 
 
-def set_person(conn: sqlite3.Connection, face_id, person_id):
+def all_embeddings(conn: sqlite3.Connection, include_hidden=False) -> list:
+    cursor = conn.cursor()
+    query = "SELECT id, embedding_json FROM faces"
+    if not include_hidden:
+        query += " WHERE hidden = 0"
+    face_rows = cursor.execute(query).fetchall()
+    cursor.close()
+    return [json.loads(embedding_json) for id, embedding_json in face_rows], [
+        id for id, embedding_json in face_rows
+    ]
+
+
+def get_person(conn: sqlite3.Connection, face_id):
+    """
+    return person_id, person_source for face_id
+    """
+
+    cursor = conn.cursor()
+    # print(f"get_person({face_id})")
+    face_rows = cursor.execute(
+        "SELECT person_id, person_source FROM faces WHERE id = ?", (face_id,)
+    ).fetchone()
+    cursor.close()
+
+    person_id, person_source = face_rows
+    return person_id, person_source
+
+
+def set_person(conn: sqlite3.Connection, face_id, person_id, person_source: int):
     cursor = conn.cursor()
     print(f"set face {face_id} to person {person_id}")
     cursor.execute(
-        "UPDATE faces SET person_id = ? WHERE id = ?",
-        (person_id, face_id),
+        "UPDATE faces SET person_id = ?, person_source = ? WHERE id = ?",
+        (person_id, person_source, face_id),
     )
     conn.commit()
