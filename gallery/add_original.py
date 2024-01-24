@@ -16,16 +16,18 @@ import face_recognition
 from gallery import model
 
 
+def hash_image_data(img) -> str:
+    pixel_data = [x for xs in list(img.getdata()) for x in xs]
+    return hashlib.sha256(bytes(pixel_data)).hexdigest()
+
+
 def add_original(image_path) -> int:
     model.init()
 
     image_path = Path(image_path)
     with open(image_path, "rb") as file:
         img = Image.open(file)
-        pixel_data = [x for xs in list(img.getdata()) for x in xs]
-        # img_byte_arr = io.BytesIO()
-        # img.save(img_byte_arr, format="png")
-        sha_hash = hashlib.sha256(bytes(pixel_data)).hexdigest()
+        sha_hash = hash_image_data(img)
 
     conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
@@ -45,8 +47,8 @@ def add_original(image_path) -> int:
         shutil.copyfile(image_path, dst_path)
 
         cursor.execute(
-            "INSERT INTO image_hashes (sha_hash, file_path) VALUES (?, ?)",
-            (sha_hash, dst_name),
+            "INSERT INTO image_hashes (sha_hash, file_path, original_name) VALUES (?, ?, ?)",
+            (sha_hash, dst_name, image_path.name),
         )
         conn.commit()
         image_id = cursor.lastrowid
@@ -114,31 +116,42 @@ class ImageWindow:
 
 
 def update_face(image_id):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
-
     image_row = cursor.execute(
-        "SELECT * FROM image_hashes WHERE id = ?", (image_id,)
+        "SELECT id, file_path FROM image_hashes WHERE id = ?", (image_id,)
     ).fetchone()
 
-    image_id, sha_hash, file_path = image_row
+    image_id, file_path = image_row
 
     face_rows = cursor.execute(
-        "SELECT * from image_faces WHERE image_id = ?", (image_id,)
+        "SELECT * from faces WHERE image_id = ?", (image_id,)
     ).fetchall()
 
     # window = ImageWindow(ORIGINALS_DIR / file_path)
     # window.show()
 
     if not face_rows:
-        image = face_recognition.load_image_file(ORIGINALS_DIR / file_path)
+        image = face_recognition.load_image_file(model.ORIGINALS_DIR / file_path)
         locations = face_recognition.face_locations(image)
         for y1, x2, y2, x1 in locations:  # [(t, r, b, l)]
             print(f"image {image_id}: found face at {(x1, y1, x2, y2)}")
+
+            pil_image = Image.open(model.ORIGINALS_DIR / file_path)
+            cropped = pil_image.crop((x1, y1, x2, y2))
+            cropped_sha = hash_image_data(cropped)
+            output_name = f"{cropped_sha[0:8]}.png"
+            output_path = model.CACHE_DIR / "faces" / output_name
+            output_path.parent.mkdir(exist_ok=True, parents=True)
+            print(output_path)
+            cropped.save(output_path)
+
             cursor.execute(
-                "INSERT INTO image_faces (image_id, top, right, bottom, left, hide) VALUES (?, ?, ?, ?, ?, ?)",
-                (image_id, y1, x2, y2, x1, False),
+                "INSERT INTO faces (image_id, top, right, bottom, left, hidden, extracted_path) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (image_id, y1, x2, y2, x1, False, output_name),
             )
+
+            # cropped.show()
         conn.commit()
     else:
         print(f"already detected faces for {image_id}")
@@ -156,13 +169,11 @@ def update_faces():
     cursor = conn.cursor()
 
     # SQL query to select all rows from the image_hashes table
-    image_rows = cursor.execute("SELECT * FROM image_hashes").fetchall()
+    image_rows = cursor.execute("SELECT id FROM image_hashes").fetchall()
 
     # Iterate over each row in the table
     with multiprocessing.Pool(model.CPUS) as p:
-        p.starmap(
-            update_face, [(image_id,) for image_id, sha_hash, file_path in image_rows]
-        )
+        p.starmap(update_face, [(image_id[0],) for image_id in image_rows])
 
     # Close the connection
     cursor.close()
@@ -173,43 +184,37 @@ def update_embeddings():
     conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
 
-    results = cursor.execute("SELECT * from image_faces").fetchall()
+    face_rows = cursor.execute(
+        "SELECT id, image_id, top, right, bottom, left FROM faces WHERE embedding_json IS NULL"
+    ).fetchall()
 
-    for face_row in results:
-        face_id, image_id, top, right, bottom, left, hide = face_row
+    for face_row in face_rows:
+        face_id, image_id, top, right, bottom, left = face_row
 
         # retrieve image for face
         image_row = cursor.execute(
-            "SELECT * from image_hashes WHERE id = ?", (image_id,)
+            "SELECT file_path from image_hashes WHERE id = ?", (image_id,)
         ).fetchone()
-        _, sha_hash, file_path = image_row
+        file_path = image_row[0]
 
         # original_img = Image.open(ORIGINALS_DIR / file_path)
         # cropped = original_img.crop((left, top, right, bottom))
         # cropped.show()
 
-        results = cursor.execute(
-            "SELECT * from face_embeddings WHERE face_id = ?", (face_id,)
-        ).fetchall()
+        original_img = face_recognition.load_image_file(model.ORIGINALS_DIR / file_path)
+        encoding = face_recognition.face_encodings(
+            original_img, known_face_locations=[(top, right, bottom, left)]
+        )[0]
+        # print(encoding)
 
-        if not results:
-            original_img = face_recognition.load_image_file(ORIGINALS_DIR / file_path)
-            encoding = face_recognition.face_encodings(
-                original_img, known_face_locations=[(top, right, bottom, left)]
-            )[0]
-            # print(encoding)
+        data_str = json.dumps(encoding.tolist())
 
-            data_str = json.dumps(encoding.tolist())
-            # print(data_str)
-
-            print(f"face {face_id}: store embedding {data_str[:20]}...")
-            cursor.execute(
-                "INSERT INTO face_embeddings (face_id, embedding_json) VALUES (?, ?)",
-                (face_id, data_str),
-            )
-            conn.commit()
-        else:
-            print(f"already have embedding for face {face_id}")
+        print(f"face {face_id}: update embedding {data_str[:20]}...")
+        cursor.execute(
+            "UPDATE faces SET embedding_json = ? WHERE id = ?",
+            (data_str, face_id),
+        )
+        conn.commit()
 
     # close connection
     cursor.close()
