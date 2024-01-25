@@ -181,7 +181,7 @@ def get_people_by_name_near(conn: sqlite3.Connection, name: str):
     fields = [x for f in fields for x in f.split("-")]
 
     query = (
-        "SELECT id, name from people WHERE (name != ?) AND ("
+        "SELECT id, name FROM people WHERE (name != ?) AND ("
         + " OR ".join("name LIKE ?" for _ in fields)
         + ")"
     )
@@ -191,3 +191,28 @@ def get_people_by_name_near(conn: sqlite3.Connection, name: str):
     ).fetchall()
 
     return [id for id, _ in people_rows], [name for _, name in people_rows]
+
+
+def get_people(conn: sqlite3.Connection) -> list:
+    cursor = conn.cursor()
+    rows = cursor.execute("SELECT * FROM people").fetchall()
+    cursor.close()
+    return rows
+
+
+def get_faces_for_person(conn: sqlite3.Connection, person_id: int) -> list:
+    cursor = conn.cursor()
+    rows = cursor.execute(
+        "SELECT * FROM faces WHERE person_id = ? AND hidden = 0", (person_id,)
+    ).fetchall()
+    cursor.close()
+    return rows
+
+
+def get_original(conn: sqlite3.Connection, original_id: int) -> list:
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT * FROM originals WHERE id = ?", (original_id,)
+    ).fetchone()
+    cursor.close()
+    return row
