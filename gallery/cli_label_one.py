@@ -2,6 +2,7 @@ import sqlite3
 import sys
 
 from gallery import model
+from gallery.cli_add_original import update_labels
 
 if __name__ == "__main__":
     model.init()
@@ -11,7 +12,10 @@ if __name__ == "__main__":
 
     # Look up a face without a person
     face_row = cursor.execute(
-        "SELECT id, image_id, extracted_path from faces WHERE person_id IS NULL ORDER BY RANDOM() LIMIT 1",
+        """SELECT id, image_id, extracted_path from faces 
+           WHERE person_id IS NULL OR person_id = ""
+           ORDER BY RANDOM()
+           LIMIT 1""",
     ).fetchone()
     if not face_row:
         print("No unlabeled faces!")
@@ -20,7 +24,7 @@ if __name__ == "__main__":
 
     # look up the image path
     image_row = cursor.execute(
-        "SELECT file_path, original_name from image_hashes WHERE id = ?", (image_id,)
+        "SELECT file_path, original_name from originals WHERE id = ?", (image_id,)
     ).fetchone()
     file_path, original_name = image_row
 
@@ -82,7 +86,7 @@ if __name__ == "__main__":
             if selected_int == 0:
                 if perfect_rows:
                     selected_id, _ = perfect_rows[0]
-                    model.set_person(
+                    model.set_face_person(
                         conn, face_id, selected_id, model.PERSON_SOURCE_MANUAL
                     )
                 else:
@@ -90,12 +94,16 @@ if __name__ == "__main__":
             else:
                 selected_id, selected_name = close_rows[i - 1]
 
-            model.set_person(conn, face_id, selected_id, model.PERSON_SOURCE_MANUAL)
+            model.set_face_person(
+                conn, face_id, selected_id, model.PERSON_SOURCE_MANUAL
+            )
             break
 
     else:
         person_id = model.new_person(conn, provided_name)
-        model.set_person(conn, face_id, person_id, model.PERSON_SOURCE_MANUAL)
+        model.set_face_person(conn, face_id, person_id, model.PERSON_SOURCE_MANUAL)
+
+    update_labels()
 
     cursor.close()
     conn.close()

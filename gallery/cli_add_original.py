@@ -21,34 +21,60 @@ def hash_image_data(img) -> str:
     return hashlib.sha256(bytes(pixel_data)).hexdigest()
 
 
+def hash_file_data(f) -> str:
+    return hashlib.sha256(f.read()).hexdigest()
+
+
 def add_original(image_path) -> int:
     model.init()
-
-    image_path = Path(image_path)
-    with open(image_path, "rb") as file:
-        img = Image.open(file)
-        sha_hash = hash_image_data(img)
 
     conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM image_hashes WHERE sha_hash = ?", (sha_hash,))
+    image_path = Path(image_path)
+
+    # check if the file is an exact duplicate of one we've seen before
+    # this is faster than opening and rendering the image to compare the
+    # data, so we can more quickly reject images we've seen before
+    with open(image_path, "rb") as f:
+        file_hash = hash_file_data(f)
+
+    cursor.execute("SELECT id FROM originals WHERE file_hash = ?", (file_hash,))
+    row = cursor.fetchone()
+
+    if row is not None:
+        image_id = row[0]
+        print(f"{image_path} file already present as image {image_id}")
+        cursor.close()
+        conn.close()
+        return image_id
+
+    # check if the pixel values are identical to an image we already have
+    # this is much slower than hashing the file data directly, but
+    # prevents us from adding the same image twice just because the files are not the same
+    with open(image_path, "rb") as file:
+        img = Image.open(file)
+        img_hash = hash_image_data(img)
+
+    cursor.execute("SELECT * FROM originals WHERE img_hash = ?", (img_hash,))
     data = cursor.fetchone()
 
     if data is not None:
         image_id = data[0]
-        print(f"{image_path} already present as image {image_id}")
+        print(f"{image_path} image data already present as image {image_id}")
     else:
         # copy to ORIGINALS_DIR
-        dst_name = f"{sha_hash[0:8]}{image_path.suffix}"
+        dst_name = Path(f"{img_hash[0:2]}") / f"{img_hash[0:8]}{image_path.suffix}"
         dst_path = model.ORIGINALS_DIR / dst_name
         dst_path.parent.mkdir(exist_ok=True, parents=True)
         print(f"{image_path} -> {dst_path}")
         shutil.copyfile(image_path, dst_path)
 
+        width, height = img.size
+
         cursor.execute(
-            "INSERT INTO image_hashes (sha_hash, file_path, original_name) VALUES (?, ?, ?)",
-            (sha_hash, dst_name, image_path.name),
+            "INSERT INTO originals (img_hash, file_hash, file_path, original_name, width, height) VALUES (?, ?, ?, ?, ?, ?)",
+            (img_hash, file_hash, str(dst_name), image_path.name, width, height),
         )
         conn.commit()
         image_id = cursor.lastrowid
@@ -119,10 +145,10 @@ def update_face(image_id):
     conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
     image_row = cursor.execute(
-        "SELECT id, file_path FROM image_hashes WHERE id = ?", (image_id,)
+        "SELECT id, file_path, width, height FROM originals WHERE id = ?", (image_id,)
     ).fetchone()
 
-    image_id, file_path = image_row
+    image_id, file_path, image_width, image_height = image_row
 
     face_rows = cursor.execute(
         "SELECT * from faces WHERE image_id = ?", (image_id,)
@@ -132,23 +158,38 @@ def update_face(image_id):
     # window.show()
 
     if not face_rows:
-        image = face_recognition.load_image_file(model.ORIGINALS_DIR / file_path)
+        image_path = model.ORIGINALS_DIR / file_path
+        image = face_recognition.load_image_file(image_path)
         locations = face_recognition.face_locations(image)
         for y1, x2, y2, x1 in locations:  # [(t, r, b, l)]
-            print(f"image {image_id}: found face at {(x1, y1, x2, y2)}")
+            face_height = y2 - y1
+            face_width = x2 - x1
 
-            pil_image = Image.open(model.ORIGINALS_DIR / file_path)
+            print(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
+            face_is_small = (
+                face_height / image_height < 0.033 or face_width / image_width < 0.033
+            )
+            hidden = False
+            hidden_reason = None
+            if face_is_small:
+                print(
+                    f"image {image_id}: face at {(x1, y1, x2, y2)} will be hidden (too small)"
+                )
+                hidden = True
+                hidden_reason = model.HIDDEN_REASON_SMALL
+
+            pil_image = Image.open(image_path)
             cropped = pil_image.crop((x1, y1, x2, y2))
             cropped_sha = hash_image_data(cropped)
-            output_name = f"{cropped_sha[0:8]}.png"
+            output_name = Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}.png"
             output_path = model.CACHE_DIR / "faces" / output_name
             output_path.parent.mkdir(exist_ok=True, parents=True)
             print(output_path)
             cropped.save(output_path)
 
             cursor.execute(
-                "INSERT INTO faces (image_id, top, right, bottom, left, hidden, extracted_path) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (image_id, y1, x2, y2, x1, False, output_name),
+                "INSERT INTO faces (image_id, top, right, bottom, left, hidden, hidden_reason, extracted_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (image_id, y1, x2, y2, x1, hidden, hidden_reason, str(output_name)),
             )
 
             # cropped.show()
@@ -168,8 +209,8 @@ def update_faces():
     conn = sqlite3.connect(model.DB_PATH)
     cursor = conn.cursor()
 
-    # SQL query to select all rows from the image_hashes table
-    image_rows = cursor.execute("SELECT id FROM image_hashes").fetchall()
+    # SQL query to select all rows from the originals table
+    image_rows = cursor.execute("SELECT id FROM originals").fetchall()
 
     # Iterate over each row in the table
     with multiprocessing.Pool(model.CPUS) as p:
@@ -185,7 +226,7 @@ def update_embeddings():
     cursor = conn.cursor()
 
     face_rows = cursor.execute(
-        "SELECT id, image_id, top, right, bottom, left FROM faces WHERE embedding_json IS NULL"
+        "SELECT id, image_id, top, right, bottom, left FROM faces WHERE embedding_json IS NULL AND hidden = 0"
     ).fetchall()
 
     for face_row in face_rows:
@@ -193,7 +234,7 @@ def update_embeddings():
 
         # retrieve image for face
         image_row = cursor.execute(
-            "SELECT file_path from image_hashes WHERE id = ?", (image_id,)
+            "SELECT file_path from originals WHERE id = ?", (image_id,)
         ).fetchone()
         file_path = image_row[0]
 
@@ -238,6 +279,7 @@ def update_labels():
     # put through DBSCAN
 
     embeddings, face_ids = model.all_embeddings(conn)
+    print(f"clustering {len(embeddings)} faces...")
 
     # X = np.array(embeddings[1])
     # Y = np.array(embeddings[2:])
@@ -246,33 +288,33 @@ def update_labels():
 
     X = np.array(embeddings)
 
-    clustering = DBSCAN(eps=0.41, min_samples=2, metric="euclidean").fit(X)
+    clustering = DBSCAN(eps=0.44, min_samples=3, metric="euclidean").fit(X)
     # print(clustering.labels_)
 
     clusters = {}
     for xi, cluster_id in enumerate(clustering.labels_):
         clusters[cluster_id] = clusters.get(cluster_id, []) + [xi]
 
-    print(clusters)
+    print(f"processing {len(clusters)} clusters...")
 
     for cluster_id, xis in clusters.items():
         if cluster_id == -1:
             continue
 
-        print(f"processing cluster {cluster_id}")
+        # print(f"processing cluster {cluster_id}")
 
         cluster_labeled_faces = []
         for xi in xis:
-            label, reason = model.get_person(conn, face_ids[xi])
+            label, reason = model.get_face_person(conn, face_ids[xi])
             if reason == model.PERSON_SOURCE_MANUAL:
                 cluster_labeled_faces += [(xi, label, reason)]
 
         # print(cluster_labeled_faces)
 
-        # label each unlabeled face to the closest labeled face
+        # label each unlabeled face in the cluster to the closest labeled face in the cluster
         if cluster_labeled_faces:
             for xi in xis:
-                a, reason = model.get_person(conn, face_ids[xi])
+                a, reason = model.get_face_person(conn, face_ids[xi])
                 if reason != model.PERSON_SOURCE_MANUAL:
                     min_dist_label = None
                     min_dist = 100000000  # big number
@@ -283,21 +325,22 @@ def update_labels():
                                 np.array(embeddings[xi]),
                             )[0]
                             # print(f"dist with {xi} is {dist}")
-                            if dist < min_dist:
+                            if dist < min_dist and dist < 0.5:
                                 min_dist_label = label
                                 min_dist = dist
 
-                    current_person_id, _ = model.get_person(conn, face_ids[xi])
-                    if current_person_id != min_dist_label:
-                        print(
-                            f"updated unlabeled or auto-labeled xi={xi} to {min_dist_label}"
-                        )
-                        model.set_person(
-                            conn,
-                            face_ids[xi],
-                            min_dist_label,
-                            model.PERSON_SOURCE_AUTOMATIC,
-                        )
+                    if min_dist_label:
+                        current_person_id, _ = model.get_face_person(conn, face_ids[xi])
+                        if current_person_id != min_dist_label:
+                            print(
+                                f"updated unlabeled or auto-labeled xi={xi} to {min_dist_label}"
+                            )
+                            model.set_face_person(
+                                conn,
+                                face_ids[xi],
+                                min_dist_label,
+                                model.PERSON_SOURCE_AUTOMATIC,
+                            )
                 else:
                     pass  # this face in this cluster was already labeled
         else:
