@@ -1,6 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 import sqlite3
+import re
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -40,23 +41,31 @@ def handle_people(handler: BaseHTTPRequestHandler):
     )
 
 
+def handle_person(handler: BaseHTTPRequestHandler):
+    pass
+
+
 ROUTES = {
-    "/": handle_root,
+    "/person/[0-9]+": handle_person,
     "/people": handle_people,
+    "/": handle_root,
 }
 
 
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path in ROUTES:
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            ROUTES[self.path](self)
-        else:
-            self.send_response(404)
-            # self.send_header("Content-type", "text/html")
-            self.end_headers()
+        for pattern in ROUTES.keys():
+            if re.match(pattern, self.path):
+                print("matched", pattern)
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                ROUTES[pattern](self)
+                return
+
+        self.send_response(404)
+        # self.send_header("Content-type", "text/html")
+        self.end_headers()
         # self.wfile.write(
         #     bytes("<html><head><title>https://pythonbasics.org</title></head>", "utf-8")
         # )
