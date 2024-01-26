@@ -1,5 +1,14 @@
 # 
 
+## Example
+
+```bash
+python -m gallery.cli_add_original example_data/*
+python -m gallery.server
+```
+
+Then navigate to http://localhost:8000 in your browser.
+
 ## Add Images
 ```
 python -m gallery.cli_add_original /path/to/images/*
