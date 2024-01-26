@@ -7,16 +7,17 @@
 {% block content %}
 <h1>Label</h1>
 
-<form class="records">
+<form class="records" action="/api/v1/label-many" method="post">
+    <input type="submit" value="SUBMIT" />
     {% for record in records %}
     <div class="record">
         <div class="id">{{ record[0] }}</div>
         <div class="img-face"><img src="{{ record[1] }}" /></div>
         <div class="img-orig"><img src="{{ record[2] }}" /></div>
-        <label for="name-{{ record[0] }}">name</label>
-        <input type="text" name="name-{{ record[0] }}" id="name-{{ record[0] }}" required />
-        <label for="hidden-{{ record[0] }}">hide</label>
-        <input type="checkbox" name="hidden-{{ record[0] }}" id="hidden-{{ record[0] }}" required />
+        <label for="{{ record[0] }}-name">name</label>
+        <input type="text" name="{{ record[0] }}-name" />
+        <label for="{{ record[0] }}-hidden">hide</label>
+        <input type="checkbox" name="{{ record[0] }}-hidden" />
     </div>
     {% endfor %}
 </form>

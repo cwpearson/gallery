@@ -10,6 +10,7 @@ PERSON_SOURCE_MANUAL = 1
 PERSON_SOURCE_AUTOMATIC = 2
 
 HIDDEN_REASON_SMALL = 1
+HIDDEN_REASON_MANUAL = 2
 
 CPUS = max(multiprocessing.cpu_count() - 1, 1)
 
@@ -165,6 +166,7 @@ def face_add_excluded_person(conn: sqlite3.Connection, face_id: int, person_id: 
 
 
 def get_person_by_name_exact(conn: sqlite3.Connection, name: str) -> int:
+    "get the id of the person whose name matches exactly. None if no such person"
     cursor = conn.cursor()
     person_row = cursor.execute(
         "SELECT id FROM people WHERE name = ?",
@@ -172,7 +174,10 @@ def get_person_by_name_exact(conn: sqlite3.Connection, name: str) -> int:
     ).fetchone()
     cursor.close()
 
-    return person_row
+    if person_row is None:
+        return person_row
+    else:
+        return person_row[0]
 
 
 def get_people_by_name_near(conn: sqlite3.Connection, name: str):
@@ -237,3 +242,16 @@ def get_originals_for_person(conn: sqlite3.Connection, person_id: int) -> list:
         originals += [get_original(conn, image_id)]
 
     return originals
+
+
+def set_face_hidden(
+    conn: sqlite3.Connection, face_id, hidden: bool, hidden_reason: int
+):
+    cursor = conn.cursor()
+    print(f"set face {face_id} hidden={hidden} hidden_reason={hidden_reason}")
+    cursor.execute(
+        "UPDATE faces SET hidden = ?, hidden_reason = ? WHERE id = ?",
+        (hidden, hidden_reason, face_id),
+    )
+    conn.commit()
+    cursor.close()
