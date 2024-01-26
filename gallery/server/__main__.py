@@ -42,7 +42,8 @@ def handle_people(handler: BaseHTTPRequestHandler):
 
 
 def handle_person(handler: BaseHTTPRequestHandler):
-    pass
+    person_id = handler.path[handler.path.rfind("/") + 1 :]
+    print(f"handle_person: person_id={person_id}")
 
 
 ROUTES = {
