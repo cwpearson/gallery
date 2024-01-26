@@ -1,0 +1,16 @@
+.gallery {
+    display: flex;
+    flex-flow: row wrap;
+
+    .tile {
+        max-width: 300px;
+        max-height: 300px;
+        border: 1rem solid green;
+        margin: 1rem;
+
+        img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+    }
+}
