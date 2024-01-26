@@ -66,6 +66,35 @@ def handle_person(handler: BaseHTTPRequestHandler):
     )
 
 
+def handle_label(handler: BaseHTTPRequestHandler):
+    template = env.get_template("label.html")
+    conn = sqlite3.connect(model.DB_PATH)
+
+    # retrieve all unlabeled faces
+    faces = model.get_faces_for_person(conn, person_id=None)
+
+    # for each unlabeled face, retrieve image
+    records = []
+    for face in faces:
+        face_id = face[0]
+        original_id = face[1]
+        original = model.get_original(conn, original_id)
+        original_path = (
+            (model.ORIGINALS_DIR / original[1]).resolve().relative_to(Path(os.getcwd()))
+        )
+        face_path = (model.FACES_DIR / face[8]).resolve().relative_to(Path(os.getcwd()))
+        records += [(face_id, str(face_path), str(original_path))]
+
+    print(f"handle_label: {len(records)} records")
+
+    handler.wfile.write(
+        bytes(
+            template.render(records=records),
+            "utf-8",
+        )
+    )
+
+
 class Re:
     def __init__(self, val):
         self.val = val
@@ -74,6 +103,7 @@ class Re:
 ROUTES = {
     Re("/person/[0-9]+"): handle_person,
     "/people": handle_people,
+    "/label": handle_label,
     "/": handle_root,
 }
 

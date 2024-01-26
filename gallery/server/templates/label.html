@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Label{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/label.css">
+{% endblock %}
+{% block content %}
+<h1>Label</h1>
+
+<form class="records">
+    {% for record in records %}
+    <div class="record">
+        <div class="id">{{ record[0] }}</div>
+        <div class="img-face"><img src="{{ record[1] }}" /></div>
+        <div class="img-orig"><img src="{{ record[2] }}" /></div>
+        <label for="name-{{ record[0] }}">name</label>
+        <input type="text" name="name-{{ record[0] }}" id="name-{{ record[0] }}" required />
+        <label for="hidden-{{ record[0] }}">hide</label>
+        <input type="checkbox" name="hidden-{{ record[0] }}" id="hidden-{{ record[0] }}" required />
+    </div>
+    {% endfor %}
+</form>
+{% endblock %}

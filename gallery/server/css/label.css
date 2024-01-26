@@ -1,0 +1,29 @@
+.record {
+    display: flex;
+    flex-flow: row;
+    border: 1px solid orange;
+
+    .img-face {
+        height: 300px;
+        width: 300px;
+        border: 1px solid blue;
+
+        img {
+            /* object-contain needs a width and height to work on*/
+            object-fit: contain;
+            width: 100%;
+            height: 100%;
+        }
+    }
+
+    .img-orig {
+        height: 300px;
+        width: 300px;
+        border: 1px solid green;
+
+        img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+    }
+}

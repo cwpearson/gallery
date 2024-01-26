@@ -202,9 +202,14 @@ def get_people(conn: sqlite3.Connection) -> list:
 
 def get_faces_for_person(conn: sqlite3.Connection, person_id: int) -> list:
     cursor = conn.cursor()
-    rows = cursor.execute(
-        "SELECT * FROM faces WHERE person_id = ? AND hidden = 0", (person_id,)
-    ).fetchall()
+    if person_id is None:
+        rows = cursor.execute(
+            "SELECT * FROM faces WHERE person_id IS NULL AND hidden = 0"
+        ).fetchall()
+    else:
+        rows = cursor.execute(
+            "SELECT * FROM faces WHERE person_id = ? AND hidden = 0", (person_id,)
+        ).fetchall()
     cursor.close()
     return rows
 
