@@ -3,7 +3,7 @@
 ## Example
 
 ```bash
-python -m gallery.cli_add_original example_data/*
+python -m gallery.cli_add_original example_originals/*
 python -m gallery.server
 ```
 
