@@ -22,6 +22,16 @@ Browse to http://localhost:8000
 
 ## Roadmap
 
+- [ ] Track time original was added
+- [x] Upload images from GUI
+- [ ] Edit person from GUI
+  - [ ] Change name
+  - [ ] Delete
+- [ ] Merge people from GUI
+- [ ] Image page
+  - [ ] Labeled Faces
+  - [ ] Unlabeled Faces
+  - [ ] Hidden Faces
 - [x] use the `not_people_json` field of `faces` table to store ids of people the user has said this face is not
   - [ ] when auto-labeling, find the closest labeled face that is not one of these people
 - [x] create subdirectories in the .gallery folder for images so each one doesn't have too many files

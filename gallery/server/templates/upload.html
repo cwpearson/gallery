@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Upload Files{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/upload.css">
+{% endblock %}
+{% block content %}
+<h1>Upload Files</h1>
+
+<form action="/api/v1/upload-files" method="post" enctype=multipart/form-data>
+    <label for="imgfiles">Choose images to upload</label>
+    <input type="file" name="imgfiles" accept="image/*" multiple />
+    <input type="submit" value="SUBMIT" />
+</form>
+
+{% endblock %}

@@ -8,14 +8,26 @@
 <h1>Label</h1>
 
 <form class="records" action="/api/v1/label-many" method="post">
+    <datalist id="name-suggestions">
+        {% for s in name_suggestions %}
+        <option value="{{ s }}">
+            {% endfor %}
+    </datalist>
     <input type="submit" value="SUBMIT" />
     {% for record in records %}
     <div class="record">
         <div class="id">{{ record[0] }}</div>
-        <div class="img-face"><img src="{{ record[1] }}" /></div>
-        <div class="img-orig"><img src="{{ record[2] }}" /></div>
+        <div class="face-tile">
+            <div class="img-face"><img src="{{ record[1] }}" /></div>
+            path here
+        </div>
+        <div class="orig-tile">
+            <div class="img-orig"><img src="{{ record[2] }}" /></div>
+            {{ record[3] }}
+        </div>
         <label for="{{ record[0] }}-name">name</label>
-        <input type="text" name="{{ record[0] }}-name" />
+        <input type="text" name="{{ record[0] }}-name" list="name-suggestions" />
+
         <label for="{{ record[0] }}-hidden">hide</label>
         <input type="checkbox" name="{{ record[0] }}-hidden" />
     </div>

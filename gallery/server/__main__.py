@@ -4,10 +4,14 @@ import sqlite3
 import re
 import os
 import urllib
+from tempfile import TemporaryDirectory
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from requests_toolbelt.multipart import decoder
+import requests_toolbelt
 
 from gallery import model
+from gallery import cli_add_original
 
 # https://medium.com/@andrewklatzke/creating-a-python3-webserver-from-the-ground-up-4ff8933ecb96
 
@@ -41,6 +45,22 @@ def handle_people(handler: BaseHTTPRequestHandler):
             "utf-8",
         )
     )
+
+
+def handle_get_upload(handler: BaseHTTPRequestHandler):
+    print("handle_get_upload")
+    template = env.get_template("upload.html")
+
+    conn = sqlite3.connect(model.DB_PATH)
+
+    handler.wfile.write(
+        bytes(
+            template.render(),
+            "utf-8",
+        )
+    )
+
+    conn.close()
 
 
 def handle_person(handler: BaseHTTPRequestHandler):
@@ -80,17 +100,24 @@ def handle_label(handler: BaseHTTPRequestHandler):
         face_id = face[0]
         original_id = face[1]
         original = model.get_original(conn, original_id)
-        original_path = (
+        img_path = (
             (model.ORIGINALS_DIR / original[1]).resolve().relative_to(Path(os.getcwd()))
         )
+        original_name = original[2]
         face_path = (model.FACES_DIR / face[8]).resolve().relative_to(Path(os.getcwd()))
-        records += [(face_id, str(face_path), str(original_path))]
+        records += [(face_id, str(face_path), str(img_path), original_name)]
 
     print(f"handle_label: {len(records)} records")
 
+    people = model.get_people(conn)
+
+    name_suggestions = [p[1] for p in people]
     handler.wfile.write(
         bytes(
-            template.render(records=records),
+            template.render(
+                records=records,
+                name_suggestions=name_suggestions,
+            ),
             "utf-8",
         )
     )
@@ -103,6 +130,7 @@ class Re:
 
 GET_ROUTES = {
     Re("/person/[0-9]+"): handle_person,
+    "/upload": handle_get_upload,
     "/people": handle_people,
     "/label": handle_label,
     "/": handle_root,
@@ -142,6 +170,59 @@ def handle_post_label_many(h: BaseHTTPRequestHandler):
                 hidden=True,
                 hidden_reason=model.HIDDEN_REASON_MANUAL,
             )
+
+    cli_add_original.update_labels()
+
+    # redirect back where we sumbitted the post from
+    h.send_response(302)
+    h.send_header("Location", h.headers["Referer"])
+    h.end_headers()
+
+    conn.close()
+    return
+
+
+def handle_post_upload_files(h: BaseHTTPRequestHandler):
+    content_type_enc = "Content-Type".encode("utf-8")
+    image_enc = "image/".encode("utf-8")
+
+    print(h.headers)
+    conn = sqlite3.Connection(model.DB_PATH)
+    content_length = int(h.headers["Content-Length"])
+    post_data = h.rfile.read(content_length)
+
+    # post_data = decoder.MultipartDecoder.from_response(post_data)
+    data = decoder.MultipartDecoder(post_data, h.headers["Content-Type"])
+    for part in data.parts:
+        print("a part!")
+
+        if content_type_enc in part.headers:
+            if image_enc in part.headers[content_type_enc]:
+                print("image data inside!")
+
+                disp = part.headers["Content-Disposition".encode("utf-8")].decode(
+                    "utf-8"
+                )
+                print(disp)
+                match = re.search('filename="(.*)"\s*;?', disp)
+                uploaded_name = match[1]
+                print(uploaded_name)
+
+                with TemporaryDirectory(dir=os.getcwd()) as d:
+                    uploaded_path = Path(d) / uploaded_name
+                    with open(uploaded_path, "wb") as f:
+                        f.write(part.content)
+                    cli_add_original.add_original(uploaded_path)
+        # for key, value in part.headers.items():
+        #     print(key, value)
+        # if b"filename=" in part.headers.values():
+        #     print(part.content)  # Alternatively, part.text if you want unicode
+
+    # content_length = int(h.headers["Content-Length"])
+    # post_data = h.rfile.read(content_length).decode("utf-8")
+
+    # post_kvs = urllib.parse.parse_qs(post_data)
+    # print(post_data)
 
     # redirect back where we sumbitted the post from
     h.send_response(302)
@@ -189,6 +270,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         print(f"do_POST: self.path={self.path}")
         if self.path == "/api/v1/label-many":
             handle_post_label_many(self)
+        elif self.path == "/api/v1/upload-files":
+            handle_post_upload_files(self)
 
 
 def run(server_class=HTTPServer, handler_class=MyHandler):
