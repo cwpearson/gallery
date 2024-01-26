@@ -1,26 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% block title %}People{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/people.css">
+{% endblock %}
+{% block content %}
+<h1>People</h1>
 
-<head>
-    <title>People</title>
-</head>
+{# a comment #}
 
-<body>
-    <ul id="navigation">
-        {% for item in navigation %}
-        <li><a href="{{ item.href }}">{{ item.caption }}</a></li>
-        {% endfor %}
-    </ul>
-
-    <h1>People</h1>
-
-    {# a comment #}
-
-    <ul id="navigation">
-        {% for person in people %}
-        <li><a href="/person/{{ person[0] }}">{{ person[1]}}</a></li>
-        {% endfor %}
-    </ul>
-</body>
-
-</html>
+<ul>
+    {% for person in people %}
+    <li><a href="/person/{{ person[0] }}">{{ person[1]}}</a></li>
+    {% endfor %}
+</ul>
+{% endblock %}
