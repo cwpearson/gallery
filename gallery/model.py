@@ -255,3 +255,17 @@ def set_face_hidden(
     )
     conn.commit()
     cursor.close()
+
+
+def get_faces_for_original(
+    conn: sqlite3.Connection, image_id: int, include_hidden=False
+) -> list:
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM faces WHERE image_id = ?"
+    if not include_hidden:
+        query += " AND hidden = 0"
+
+    rows = cursor.execute(query, (image_id,)).fetchall()
+    cursor.close()
+    return rows

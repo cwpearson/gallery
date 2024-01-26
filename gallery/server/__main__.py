@@ -64,23 +64,97 @@ def handle_get_upload(handler: BaseHTTPRequestHandler):
 
 
 def handle_person(handler: BaseHTTPRequestHandler):
-    person_id = handler.path[handler.path.rfind("/") + 1 :]
+    person_id = int(handler.path[handler.path.rfind("/") + 1 :])
     print(f"handle_person: person_id={person_id}")
 
     conn = sqlite3.connect(model.DB_PATH)
+    person_name = model.get_person_name(conn, person_id)
+
     originals = model.get_originals_for_person(conn, person_id)
 
-    img_paths = [
-        (model.ORIGINALS_DIR / o[1]).resolve().relative_to(os.getcwd())
-        for o in originals
-    ]
+    images = []
+    for o in originals:
+        image_id = o[0]
+
+        # get faces from this image that are of this person
+        faces = model.get_faces_for_original(conn, image_id)
+        image_faces = []
+        for f in faces:
+            face_id = f[0]
+            face_person_id = f[9]
+            if face_person_id != person_id:
+                continue
+            image_faces += [
+                {
+                    "src": (model.FACES_DIR / f[8]).resolve().relative_to(os.getcwd()),
+                    "id": face_id,
+                }
+            ]
+
+        print(image_faces)
+        images += [
+            {
+                "src": (model.ORIGINALS_DIR / o[1]).resolve().relative_to(os.getcwd()),
+                "id": image_id,
+                "faces": image_faces,
+            }
+        ]
 
     template = env.get_template("person.html")
 
     handler.wfile.write(
         bytes(
             template.render(
-                img_paths=img_paths,
+                person_name=person_name,
+                person_id=person_id,
+                images=images,
+            ),
+            "utf-8",
+        )
+    )
+
+
+def handle_image(handler: BaseHTTPRequestHandler):
+    image_id = handler.path[handler.path.rfind("/") + 1 :]
+    print(f"handle_image: image_id={image_id}")
+
+    conn = sqlite3.connect(model.DB_PATH)
+    original = model.get_original(conn, image_id)
+
+    file_path = original[1]
+    original_name = original[2]
+    height = original[3]
+    width = original[4]
+    img_hash = original[5]
+    file_hash = original[6]
+
+    img_path = (model.ORIGINALS_DIR / file_path).resolve().relative_to(os.getcwd())
+
+    all_faces = model.get_faces_for_original(conn, image_id, include_hidden=True)
+
+    faces = [
+        (Path(model.FACES_DIR / f[8]).resolve().relative_to(os.getcwd()), f[9], f[0])
+        for f in all_faces
+    ]
+    # Look up labeled faces
+
+    # Looks up auto-labeled faces
+
+    # Look up hidden faces
+
+    template = env.get_template("image.html")
+
+    handler.wfile.write(
+        bytes(
+            template.render(
+                image_id=image_id,
+                img_path=img_path,
+                original_name=original_name,
+                height=height,
+                width=width,
+                img_hash=img_hash,
+                file_hash=file_hash,
+                faces=faces,
             ),
             "utf-8",
         )
@@ -130,6 +204,7 @@ class Re:
 
 GET_ROUTES = {
     Re("/person/[0-9]+"): handle_person,
+    Re("/image/[0-9]+"): handle_image,
     "/upload": handle_get_upload,
     "/people": handle_people,
     "/label": handle_label,
@@ -186,20 +261,15 @@ def handle_post_upload_files(h: BaseHTTPRequestHandler):
     content_type_enc = "Content-Type".encode("utf-8")
     image_enc = "image/".encode("utf-8")
 
-    print(h.headers)
+    # print(h.headers)
     conn = sqlite3.Connection(model.DB_PATH)
     content_length = int(h.headers["Content-Length"])
     post_data = h.rfile.read(content_length)
 
-    # post_data = decoder.MultipartDecoder.from_response(post_data)
     data = decoder.MultipartDecoder(post_data, h.headers["Content-Type"])
     for part in data.parts:
-        print("a part!")
-
         if content_type_enc in part.headers:
             if image_enc in part.headers[content_type_enc]:
-                print("image data inside!")
-
                 disp = part.headers["Content-Disposition".encode("utf-8")].decode(
                     "utf-8"
                 )
@@ -217,12 +287,6 @@ def handle_post_upload_files(h: BaseHTTPRequestHandler):
         #     print(key, value)
         # if b"filename=" in part.headers.values():
         #     print(part.content)  # Alternatively, part.text if you want unicode
-
-    # content_length = int(h.headers["Content-Length"])
-    # post_data = h.rfile.read(content_length).decode("utf-8")
-
-    # post_kvs = urllib.parse.parse_qs(post_data)
-    # print(post_data)
 
     # redirect back where we sumbitted the post from
     h.send_response(302)

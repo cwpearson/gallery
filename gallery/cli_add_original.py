@@ -167,7 +167,7 @@ def update_face(image_id):
 
             print(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
             face_is_small = (
-                face_height / image_height < 0.033 or face_width / image_width < 0.033
+                face_height / image_height < 0.04 or face_width / image_width < 0.04
             )
             hidden = False
             hidden_reason = None

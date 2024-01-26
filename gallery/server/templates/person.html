@@ -1,16 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Person{% endblock %}
+{% block title %}{{ person_name }}{% endblock %}
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/person.css">
 {% endblock %}
 {% block content %}
-<h1>Person</h1>
+<h1>{{ person_name }}</h1>
 
 <div class="gallery">
-    {% for src in img_paths %}
+    {% for image in images %}
     <div class="tile">
-        <img src="/{{ src }}" />
+        <div class="image">
+            <img src="/{{ image.src }}" />
+        </div>
+        <div class="link">
+            <a href="/image/{{ image.id }}">View/Edit</a>
+        </div>
+        <div class="faces">
+            {% for face in image.faces %}
+            <div class="image">
+                <img src="/{{ face.src }}" />
+            </div>
+            <form class="exlcude" action="/api/v1/exclude-face-person" method="post">
+                <input type="hidden" name="person_id" value="{{ person_id }}" />
+                <input type="hidden" name="face_id" value="{{ face.id }}" />
+                <input type="submit" value="not this person" />
+            </form>
+            {% endfor %}
+        </div>
     </div>
     {% endfor %}
 </div>

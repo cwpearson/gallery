@@ -27,6 +27,7 @@ Browse to http://localhost:8000
 - [ ] Edit person from GUI
   - [ ] Change name
   - [ ] Delete
+  - [ ] Show detected faces below each image with a "not this person" button by each face
 - [ ] Merge people from GUI
 - [ ] Image page
   - [ ] Labeled Faces

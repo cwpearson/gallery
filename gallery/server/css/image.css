@@ -1,0 +1,26 @@
+.image {
+    height: 300px;
+    width: 300px;
+
+    img {
+        object-fit: contain;
+        height: 100%;
+        width: 100%;
+    }
+}
+
+.faces {
+    display: flex;
+    flex-flow: row wrap;
+
+    .face {
+        height: 200px;
+        border: 1px solid orange;
+
+        img {
+            object-fit: contain;
+            height: 100px;
+            width: 100%;
+        }
+    }
+}
