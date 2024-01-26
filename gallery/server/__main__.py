@@ -1,7 +1,8 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, SimpleHTTPRequestHandler
 from pathlib import Path
 import sqlite3
 import re
+import os
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -45,24 +46,58 @@ def handle_person(handler: BaseHTTPRequestHandler):
     person_id = handler.path[handler.path.rfind("/") + 1 :]
     print(f"handle_person: person_id={person_id}")
 
+    conn = sqlite3.connect(model.DB_PATH)
+    originals = model.get_originals_for_person(conn, person_id)
+
+    img_paths = [
+        (model.ORIGINALS_DIR / o[1]).resolve().relative_to(os.getcwd())
+        for o in originals
+    ]
+
+    template = env.get_template("person.html")
+
+    handler.wfile.write(
+        bytes(
+            template.render(
+                img_paths=img_paths,
+            ),
+            "utf-8",
+        )
+    )
+
+
+class Re:
+    def __init__(self, val):
+        self.val = val
+
 
 ROUTES = {
-    "/person/[0-9]+": handle_person,
+    Re("/person/[0-9]+"): handle_person,
     "/people": handle_people,
     "/": handle_root,
 }
 
 
-class MyHandler(BaseHTTPRequestHandler):
+class MyHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        for pattern in ROUTES.keys():
-            if re.match(pattern, self.path):
-                print("matched", pattern)
+        for key in ROUTES.keys():
+            if isinstance(key, Re) and re.match(key.val, self.path):
+                print("Re", key.val)
                 self.send_response(200)
                 self.send_header("Content-type", "text/html")
                 self.end_headers()
-                ROUTES[pattern](self)
+                ROUTES[key](self)
                 return
+            elif isinstance(key, str) and key == self.path:
+                print("exact", key)
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                ROUTES[key](self)
+                return
+
+        # fallback to whatever the simple one does
+        return SimpleHTTPRequestHandler.do_GET(self)
 
         self.send_response(404)
         # self.send_header("Content-type", "text/html")

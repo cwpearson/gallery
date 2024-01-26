@@ -216,3 +216,19 @@ def get_original(conn: sqlite3.Connection, original_id: int) -> list:
     ).fetchone()
     cursor.close()
     return row
+
+
+def get_originals_for_person(conn: sqlite3.Connection, person_id: int) -> list:
+    faces = get_faces_for_person(conn, person_id)
+
+    image_ids = set()
+
+    for face in faces:
+        image_id = face[1]
+        image_ids.add(image_id)
+
+    originals = []
+    for image_id in image_ids:
+        originals += [get_original(conn, image_id)]
+
+    return originals
