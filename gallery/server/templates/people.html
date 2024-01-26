@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>People</title>
+</head>
+
+<body>
+    <ul id="navigation">
+        {% for item in navigation %}
+        <li><a href="{{ item.href }}">{{ item.caption }}</a></li>
+        {% endfor %}
+    </ul>
+
+    <h1>People</h1>
+
+    {# a comment #}
+
+    <ul id="navigation">
+        {% for person in people %}
+        <li><a href="/person/{{ person[0] }}">{{ person[1]}}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+
+</html>

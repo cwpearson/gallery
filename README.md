@@ -1,5 +1,16 @@
 # 
 
+## Add Images
+```
+python -m gallery.cli_add_original /path/to/images/*
+```
+
+## Launch Gallery
+```
+python -m gallery.server
+```
+Browse to http://localhost:8000
+
 ## Roadmap
 
 - [x] use the `not_people_json` field of `faces` table to store ids of people the user has said this face is not
