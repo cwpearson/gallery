@@ -137,15 +137,12 @@ def init():
     # conn.close()
 
 
-def new_person(conn: sqlite3.Connection, name) -> int:
-    cursor = conn.cursor()
-    print(f"new person {name}")
-    cursor.execute(
-        "INSERT INTO people (name) VALUES (?)",
-        (name,),
-    )
-    conn.commit()
-    return cursor.lastrowid
+def new_person(name: str) -> int:
+    with Session(get_engine()) as session:
+        person = Person(name=name)
+        session.add(person)
+        session.commit()
+        return person.id
 
 
 def all_embeddings(include_hidden=False) -> list:
@@ -221,19 +218,15 @@ def face_add_excluded_person(conn: sqlite3.Connection, face_id: int, person_id: 
     cursor.close()
 
 
-def get_person_by_name_exact(conn: sqlite3.Connection, name: str) -> int:
+def get_person_by_name_exact(name: str) -> int:
     "get the id of the person whose name matches exactly. None if no such person"
-    cursor = conn.cursor()
-    person_row = cursor.execute(
-        "SELECT id FROM people WHERE name = ?",
-        (name,),
-    ).fetchone()
-    cursor.close()
 
-    if person_row is None:
-        return person_row
-    else:
-        return person_row[0]
+    with Session(get_engine()) as session:
+        person = session.scalars(select(Person).where(Person.name == name)).one()
+        if person is None:
+            return None
+        else:
+            return person.id
 
 
 def get_people_by_name_near(conn: sqlite3.Connection, name: str):
@@ -298,17 +291,13 @@ def get_originals_for_person(conn: sqlite3.Connection, person_id: int) -> list:
     return originals
 
 
-def set_face_hidden(
-    conn: sqlite3.Connection, face_id, hidden: bool, hidden_reason: int
-):
-    cursor = conn.cursor()
+def set_face_hidden(face_id, hidden: bool, hidden_reason: int):
     print(f"set face {face_id} hidden={hidden} hidden_reason={hidden_reason}")
-    cursor.execute(
-        "UPDATE faces SET hidden = ?, hidden_reason = ? WHERE id = ?",
-        (hidden, hidden_reason, face_id),
-    )
-    conn.commit()
-    cursor.close()
+    with Session(get_engine()) as session:
+        face = session.scalars(select(Face).where(Face.id == face_id)).one()
+        face.hidden = hidden
+        face.hidden_reason = hidden_reason
+        session.commit()
 
 
 def get_faces_for_original(

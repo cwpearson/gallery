@@ -231,9 +231,9 @@ def handle_post_label_many(h: BaseHTTPRequestHandler):
         print(face_id, field, v)
 
         if field == "name" and v:
-            person_id = model.get_person_by_name_exact(conn, v)
+            person_id = model.get_person_by_name_exact(v)
             if person_id is None:
-                person_id = model.new_person(conn, v)
+                person_id = model.new_person(v)
             model.set_face_person(
                 face_id=face_id,
                 person_id=person_id,
@@ -241,7 +241,6 @@ def handle_post_label_many(h: BaseHTTPRequestHandler):
             )
         if field == "hidden" and v == "on":
             model.set_face_hidden(
-                conn,
                 face_id=face_id,
                 hidden=True,
                 hidden_reason=model.HIDDEN_REASON_MANUAL,
@@ -267,9 +266,9 @@ def handle_post_label_one(h: BaseHTTPRequestHandler):
     face_id = data["face_id"][0]
     name = data["name"][0]
     if name:
-        person_id = model.get_person_by_name_exact(conn, name)
+        person_id = model.get_person_by_name_exact(name)
         if person_id is None:
-            person_id = model.new_person(conn, name)
+            person_id = model.new_person(name)
         model.set_face_person(conn, face_id, person_id, model.PERSON_SOURCE_MANUAL)
         cli_add_original.update_labels()
 

@@ -39,6 +39,6 @@ def input_person_name(conn: sqlite3.Connection, prompt: str) -> int:
             resp = input_choices([f"{r_name} (new person)"] + people_names)
 
             if resp == 0:
-                return model.new_person(conn, r_name)
+                return model.new_person(r_name)
             else:
                 return people_ids[resp - 1]
