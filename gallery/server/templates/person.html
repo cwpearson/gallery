@@ -28,7 +28,6 @@
                 <img src="/{{ face.src }}" />
             </div>
             <form class="exlcude" action="/api/v1/label-one" method="post">
-                <input type="hidden" name="person_id" value="{{ person_id }}" />
                 <input type="hidden" name="face_id" value="{{ face.id }}" />
                 <label for="name">name</label>
                 <input type="text" name="name" list="name-suggestions" />
