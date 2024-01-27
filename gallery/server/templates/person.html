@@ -7,6 +7,12 @@
 {% block content %}
 <h1>{{ person_name }}</h1>
 
+<datalist id="name-suggestions">
+    {% for s in name_suggestions %}
+    <option value="{{ s }}">
+        {% endfor %}
+</datalist>
+
 <div class="gallery">
     {% for image in images %}
     <div class="tile">
@@ -21,10 +27,12 @@
             <div class="image">
                 <img src="/{{ face.src }}" />
             </div>
-            <form class="exlcude" action="/api/v1/exclude-face-person" method="post">
+            <form class="exlcude" action="/api/v1/label-one" method="post">
                 <input type="hidden" name="person_id" value="{{ person_id }}" />
                 <input type="hidden" name="face_id" value="{{ face.id }}" />
-                <input type="submit" value="not this person" />
+                <label for="name">name</label>
+                <input type="text" name="name" list="name-suggestions" />
+                <input type="submit" value="submit" />
             </form>
             {% endfor %}
         </div>

@@ -63,9 +63,9 @@ def handle_get_upload(handler: BaseHTTPRequestHandler):
     conn.close()
 
 
-def handle_person(handler: BaseHTTPRequestHandler):
+def handle_get_person(handler: BaseHTTPRequestHandler):
     person_id = int(handler.path[handler.path.rfind("/") + 1 :])
-    print(f"handle_person: person_id={person_id}")
+    print(f"handle_get_person: person_id={person_id}")
 
     conn = sqlite3.connect(model.DB_PATH)
     person_name = model.get_person_name(conn, person_id)
@@ -100,6 +100,8 @@ def handle_person(handler: BaseHTTPRequestHandler):
             }
         ]
 
+    name_suggestions = [p[1] for p in model.get_people(conn)]
+
     template = env.get_template("person.html")
 
     handler.wfile.write(
@@ -108,6 +110,7 @@ def handle_person(handler: BaseHTTPRequestHandler):
                 person_name=person_name,
                 person_id=person_id,
                 images=images,
+                name_suggestions=name_suggestions,
             ),
             "utf-8",
         )
@@ -203,7 +206,7 @@ class Re:
 
 
 GET_ROUTES = {
-    Re("/person/[0-9]+"): handle_person,
+    Re("/person/[0-9]+"): handle_get_person,
     Re("/image/[0-9]+"): handle_image,
     "/upload": handle_get_upload,
     "/people": handle_people,
@@ -214,7 +217,6 @@ GET_ROUTES = {
 
 def handle_post_label_many(h: BaseHTTPRequestHandler):
     conn = sqlite3.Connection(model.DB_PATH)
-    print(f"do_POST: h.path={h.path}")
     content_length = int(h.headers["Content-Length"])
     post_data = h.rfile.read(content_length).decode("utf-8")
 
@@ -247,6 +249,30 @@ def handle_post_label_many(h: BaseHTTPRequestHandler):
             )
 
     cli_add_original.update_labels()
+
+    # redirect back where we sumbitted the post from
+    h.send_response(302)
+    h.send_header("Location", h.headers["Referer"])
+    h.end_headers()
+
+    conn.close()
+    return
+
+
+def handle_post_label_one(h: BaseHTTPRequestHandler):
+    conn = sqlite3.Connection(model.DB_PATH)
+    content_length = int(h.headers["Content-Length"])
+    raw_data = h.rfile.read(content_length).decode("utf-8")
+    data = urllib.parse.parse_qs(raw_data)
+
+    face_id = data["face_id"][0]
+    name = data["name"][0]
+    if name:
+        person_id = model.get_person_by_name_exact(conn, name)
+        if person_id is None:
+            person_id = model.new_person(conn, name)
+        model.set_face_person(conn, face_id, person_id, model.PERSON_SOURCE_MANUAL)
+        cli_add_original.update_labels()
 
     # redirect back where we sumbitted the post from
     h.send_response(302)
@@ -336,6 +362,8 @@ class MyHandler(SimpleHTTPRequestHandler):
             handle_post_label_many(self)
         elif self.path == "/api/v1/upload-files":
             handle_post_upload_files(self)
+        elif self.path == "/api/v1/label-one":
+            handle_post_label_one(self)
 
 
 def run(server_class=HTTPServer, handler_class=MyHandler):
