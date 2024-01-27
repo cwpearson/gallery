@@ -2,8 +2,14 @@ from pathlib import Path
 import multiprocessing
 import sqlite3
 import json
-import numpy as np
 from typing import Tuple
+import os
+
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+from sqlalchemy import Text, Integer
+from sqlalchemy import create_engine
 
 
 PERSON_SOURCE_MANUAL = 1
@@ -14,6 +20,8 @@ HIDDEN_REASON_MANUAL = 2
 
 CPUS = max(multiprocessing.cpu_count() - 1, 1)
 
+# CPUS = 1
+
 CACHE_DIR = Path(__file__).parent / ".." / ".gallery"
 
 ORIGINALS_DIR = CACHE_DIR / "originals"
@@ -21,59 +29,110 @@ FACES_DIR = CACHE_DIR / "faces"
 DB_PATH = CACHE_DIR / "gallery.db"
 
 
+class Base(DeclarativeBase):
+    pass
+
+
+class Image(Base):
+    __tablename__ = "images"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    file_name: Mapped[str] = mapped_column(Text)
+    original_name: Mapped[str] = mapped_column(Text)
+    height: Mapped[int] = mapped_column(Integer)
+    width: Mapped[int] = mapped_column(Integer)
+    image_hash: Mapped[str] = mapped_column(Text)  # hash of the image data
+    file_hash: Mapped[str] = mapped_column(Text)  # hash of the file data
+
+
+class Face(Base):
+    __tablename__ = "faces"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    image_id: Mapped[int] = mapped_column(Integer)
+    top: Mapped[int] = mapped_column(Integer)
+    right: Mapped[int] = mapped_column(Integer)
+    bottom: Mapped[int] = mapped_column(Integer)
+    left: Mapped[int] = mapped_column(Integer)
+    hidden: Mapped[int] = mapped_column(Integer)
+    hidden_reason: Mapped[int] = mapped_column(Integer, nullable=True)
+    extracted_path: Mapped[str] = mapped_column(Text)
+    person_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    person_source: Mapped[int] = mapped_column(Integer, nullable=True)
+    excluded_people: Mapped[str] = mapped_column(Text)
+    embedding_json: Mapped[str] = mapped_column(Text, nullable=True)
+
+
+class Person(Base):
+    __tablename__ = "people"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+
+
+ENGINE = None
+
+
+def get_engine():
+    global ENGINE
+    if ENGINE is None:
+        DB_PATH.parent.mkdir(exist_ok=True, parents=True)
+        engine_path = f"sqlite:///{DB_PATH.resolve()}"
+        print(f"open {engine_path}")
+        ENGINE = create_engine(engine_path, echo=False)
+    return ENGINE
+
+
 def init():
-    DB_PATH.parent.mkdir(exist_ok=True, parents=True)
+    engine = get_engine()
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    Base.metadata.create_all(engine)
 
-    # img_hash: hash of the image data
-    # file_hash: hash of the file bytes
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS originals (
-            id INTEGER PRIMARY KEY,
-            file_path TEXT,
-            original_name TEXT,
-            height INT,
-            width INT,
-            img_hash TEXT,
-            file_hash TEXT
-        )
-    """
-    )
+    # conn = sqlite3.connect(DB_PATH)
+    # cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS faces (
-            id INTEGER PRIMARY KEY,
-            image_id INTEGER,
-            top INTEGER,
-            right INTEGER,
-            bottom INTEGER,
-            left INTEGER,
-            hidden INTEGER,
-            hidden_reason INTEGER,
-            extracted_path TEXT,
-            person_id INTEGER,
-            person_source INTEGER,
-            excluded_people TEXT,
-            embedding_json TEXT
-        )
-    """
-    )
+    # cursor.execute(
+    #     """
+    #     CREATE TABLE IF NOT EXISTS originals (
+    #         id INTEGER PRIMARY KEY,
+    #         file_path TEXT,
+    #         original_name TEXT,
+    #         height INT,
+    #         width INT,
+    #         img_hash TEXT,
+    #         file_hash TEXT
+    #     )
+    # """
+    # )
 
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS people (
-            id INTEGER PRIMARY KEY,
-            name TEXT
-        )
-    """
-    )
+    # cursor.execute(
+    #     """
+    #     CREATE TABLE IF NOT EXISTS faces (
+    #         id INTEGER PRIMARY KEY,
+    #         image_id INTEGER,
+    #         top INTEGER,
+    #         right INTEGER,
+    #         bottom INTEGER,
+    #         left INTEGER,
+    #         hidden INTEGER,
+    #         hidden_reason INTEGER,
+    #         extracted_path TEXT,
+    #         person_id INTEGER,
+    #         person_source INTEGER,
+    #         excluded_people TEXT,
+    #         embedding_json TEXT
+    #     )
+    # """
+    # )
 
-    cursor.close()
-    conn.close()
+    # cursor.execute(
+    #     """
+    #     CREATE TABLE IF NOT EXISTS people (
+    #         id INTEGER PRIMARY KEY,
+    #         name TEXT
+    #     )
+    # """
+    # )
+
+    # cursor.close()
+    # conn.close()
 
 
 def new_person(conn: sqlite3.Connection, name) -> int:
