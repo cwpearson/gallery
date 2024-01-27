@@ -235,7 +235,6 @@ def handle_post_label_many(h: BaseHTTPRequestHandler):
             if person_id is None:
                 person_id = model.new_person(conn, v)
             model.set_face_person(
-                conn,
                 face_id=face_id,
                 person_id=person_id,
                 person_source=model.PERSON_SOURCE_MANUAL,

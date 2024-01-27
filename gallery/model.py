@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy import Text, Integer
 from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 
 PERSON_SOURCE_MANUAL = 1
@@ -146,42 +148,37 @@ def new_person(conn: sqlite3.Connection, name) -> int:
     return cursor.lastrowid
 
 
-def all_embeddings(conn: sqlite3.Connection, include_hidden=False) -> list:
-    cursor = conn.cursor()
-    query = "SELECT id, embedding_json FROM faces"
-    if not include_hidden:
-        query += " WHERE hidden = 0"
-    face_rows = cursor.execute(query).fetchall()
-    cursor.close()
-    return [json.loads(embedding_json) for id, embedding_json in face_rows], [
-        id for id, embedding_json in face_rows
-    ]
+def all_embeddings(include_hidden=False) -> list:
+    with Session(get_engine()) as session:
+        query = select(Face).where(Face.embedding_json != None)
+        if not include_hidden:
+            query = query.where(Face.hidden == 0)
+        faces = session.scalars(query).all()
+
+        return [json.loads(face.embedding_json) for face in faces], [
+            face.id for face in faces
+        ]
 
 
-def get_face_person(conn: sqlite3.Connection, face_id):
+def get_face_person(face_id: int):
     """
     return person_id, person_source for face_id
     """
-
-    cursor = conn.cursor()
     # print(f"get_face_person({face_id})")
-    face_rows = cursor.execute(
-        "SELECT person_id, person_source FROM faces WHERE id = ?", (face_id,)
-    ).fetchone()
-    cursor.close()
 
-    person_id, person_source = face_rows
-    return person_id, person_source
+    with Session(get_engine()) as session:
+        face = session.scalars(select(Face).where(Face.id == face_id)).one()
+        return face.person_id, face.person_source
 
 
-def set_face_person(conn: sqlite3.Connection, face_id, person_id, person_source: int):
-    cursor = conn.cursor()
+def set_face_person(face_id: int, person_id: int, person_source: int):
     print(f"set face {face_id} to person {person_id}")
-    cursor.execute(
-        "UPDATE faces SET person_id = ?, person_source = ? WHERE id = ?",
-        (person_id, person_source, face_id),
-    )
-    conn.commit()
+    with Session(get_engine()) as session:
+        face = session.scalars(select(Face).where(Face.id == face_id)).one()
+
+        face.person_id = person_id
+        face.person_source = person_source
+        session.commit()
 
 
 def get_person_name(conn: sqlite3.Connection, person_id: int) -> Tuple[str, None]:
@@ -278,11 +275,9 @@ def get_faces_for_person(conn: sqlite3.Connection, person_id: int) -> list:
     return rows
 
 
-def get_original(conn: sqlite3.Connection, original_id: int) -> list:
+def get_original(conn: sqlite3.Connection, image_id: int) -> list:
     cursor = conn.cursor()
-    row = cursor.execute(
-        "SELECT * FROM originals WHERE id = ?", (original_id,)
-    ).fetchone()
+    row = cursor.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
     cursor.close()
     return row
 

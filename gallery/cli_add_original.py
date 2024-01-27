@@ -1,6 +1,5 @@
 from pathlib import Path
 import sys
-import sqlite3
 import hashlib
 import shutil
 import json
@@ -190,14 +189,9 @@ def update_labels():
         - Otherwise, create a new anonymous person and assign all faces in the cluster to that person
     """
 
-    conn = sqlite3.connect(model.DB_PATH)
-    cursor = conn.cursor()
+    model.init()
 
-    # get all embeddings
-
-    # put through DBSCAN
-
-    embeddings, face_ids = model.all_embeddings(conn)
+    embeddings, face_ids = model.all_embeddings()
     print(f"clustering {len(embeddings)} faces...")
 
     # X = np.array(embeddings[1])
@@ -224,7 +218,7 @@ def update_labels():
 
         cluster_labeled_faces = []
         for xi in xis:
-            label, reason = model.get_face_person(conn, face_ids[xi])
+            label, reason = model.get_face_person(face_ids[xi])
             if reason == model.PERSON_SOURCE_MANUAL:
                 cluster_labeled_faces += [(xi, label, reason)]
 
@@ -233,7 +227,7 @@ def update_labels():
         # label each unlabeled face in the cluster to the closest labeled face in the cluster
         if cluster_labeled_faces:
             for xi in xis:
-                a, reason = model.get_face_person(conn, face_ids[xi])
+                _, reason = model.get_face_person(face_ids[xi])
                 if reason != model.PERSON_SOURCE_MANUAL:
                     min_dist_label = None
                     min_dist = 100000000  # big number
@@ -249,13 +243,12 @@ def update_labels():
                                 min_dist = dist
 
                     if min_dist_label:
-                        current_person_id, _ = model.get_face_person(conn, face_ids[xi])
+                        current_person_id, _ = model.get_face_person(face_ids[xi])
                         if current_person_id != min_dist_label:
                             print(
                                 f"updated unlabeled or auto-labeled xi={xi} to {min_dist_label}"
                             )
                             model.set_face_person(
-                                conn,
                                 face_ids[xi],
                                 min_dist_label,
                                 model.PERSON_SOURCE_AUTOMATIC,
@@ -265,9 +258,6 @@ def update_labels():
         else:
             # print(f"no labels faces in cluster {cluster_id}")
             pass
-
-    cursor.close()
-    conn.close()
 
 
 if __name__ == "__main__":
