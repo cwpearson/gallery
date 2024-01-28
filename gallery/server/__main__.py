@@ -10,6 +10,9 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from requests_toolbelt.multipart import decoder
 import requests_toolbelt
 
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
 from gallery import model
 from gallery import cli_add_original
 
@@ -22,12 +25,67 @@ env = Environment(
 )
 
 
-def handle_root(handler):
-    pass
+def handle_root(h: BaseHTTPRequestHandler):
+    print("handle_root")
+
+    h.send_response(302)
+    h.send_header("Location", "/view?offset=0&limit=25")
+    h.end_headers()
+
+
+def handle_view(h: BaseHTTPRequestHandler):
+    print("handle_view")
+
+    h.send_response(200)
+    h.send_header("Content-type", "text/html")
+    h.end_headers()
+
+    # retrieve limit and offset
+    components = urllib.parse.urlparse(h.path)
+    result = urllib.parse.parse_qs(components.query)
+    print(result)
+    limit = result.get("limit", [25])[0]
+    offset = result.get("offset", [0])[0]
+
+    with Session(model.get_engine()) as session:
+        images = session.scalars(
+            select(model.Image)
+            .order_by(model.Image.created_at)
+            .offset(offset)
+            .limit(limit)
+        ).all()
+
+    image_prefix = model.ORIGINALS_DIR.resolve().relative_to(os.getcwd())
+
+    template = env.get_template("gallery.html")
+
+    next_offset = offset + limit
+    prev_offset = offset - limit
+    next_limit = limit
+    prev_limit = limit
+
+    h.wfile.write(
+        bytes(
+            template.render(
+                image_prefix=image_prefix,
+                images=images,
+                next_offset=next_offset,
+                prev_offset=prev_offset,
+                next_limit=next_limit,
+                prev_limit=prev_limit,
+            ),
+            "utf-8",
+        )
+    )
 
 
 def handle_people(handler: BaseHTTPRequestHandler):
     print("handle_people")
+
+    handler.send_response(200)
+    handler.send_header("Content-type", "text/html")
+    handler.end_headers()
+
     template = env.get_template("people.html")
 
     conn = sqlite3.connect(model.DB_PATH)
@@ -49,6 +107,11 @@ def handle_people(handler: BaseHTTPRequestHandler):
 
 def handle_get_upload(handler: BaseHTTPRequestHandler):
     print("handle_get_upload")
+
+    handler.send_response(200)
+    handler.send_header("Content-type", "text/html")
+    handler.end_headers()
+
     template = env.get_template("upload.html")
 
     conn = sqlite3.connect(model.DB_PATH)
@@ -64,6 +127,10 @@ def handle_get_upload(handler: BaseHTTPRequestHandler):
 
 
 def handle_get_person(handler: BaseHTTPRequestHandler):
+    handler.send_response(200)
+    handler.send_header("Content-type", "text/html")
+    handler.end_headers()
+
     person_id = int(handler.path[handler.path.rfind("/") + 1 :])
     print(f"handle_get_person: person_id={person_id}")
 
@@ -118,6 +185,10 @@ def handle_get_person(handler: BaseHTTPRequestHandler):
 
 
 def handle_image(handler: BaseHTTPRequestHandler):
+    handler.send_response(200)
+    handler.send_header("Content-type", "text/html")
+    handler.end_headers()
+
     image_id = handler.path[handler.path.rfind("/") + 1 :]
     print(f"handle_image: image_id={image_id}")
 
@@ -165,6 +236,10 @@ def handle_image(handler: BaseHTTPRequestHandler):
 
 
 def handle_label(handler: BaseHTTPRequestHandler):
+    handler.send_response(200)
+    handler.send_header("Content-type", "text/html")
+    handler.end_headers()
+
     template = env.get_template("label.html")
     conn = sqlite3.connect(model.DB_PATH)
 
@@ -208,6 +283,7 @@ class Re:
 GET_ROUTES = {
     Re("/person/[0-9]+"): handle_get_person,
     Re("/image/[0-9]+"): handle_image,
+    Re("/view*"): handle_view,
     "/upload": handle_get_upload,
     "/people": handle_people,
     "/label": handle_label,
@@ -325,17 +401,11 @@ class MyHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         for key in GET_ROUTES.keys():
             if isinstance(key, Re) and re.match(key.val, self.path):
-                print("Re", key.val)
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
+                print(self.path, "matched Re", key.val)
                 GET_ROUTES[key](self)
                 return
             elif isinstance(key, str) and key == self.path:
                 print("exact", key)
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
                 GET_ROUTES[key](self)
                 return
 

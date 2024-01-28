@@ -3,12 +3,12 @@ import multiprocessing
 import sqlite3
 import json
 from typing import Tuple
-import os
+import datetime
 
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import Text, Integer
+from sqlalchemy import Text, Integer, DateTime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -42,6 +42,9 @@ class Image(Base):
     original_name: Mapped[str] = mapped_column(Text)
     height: Mapped[int] = mapped_column(Integer)
     width: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )  # time in UTC
     image_hash: Mapped[str] = mapped_column(Text)  # hash of the image data
     file_hash: Mapped[str] = mapped_column(Text)  # hash of the file data
 
@@ -84,57 +87,7 @@ def get_engine():
 
 def init():
     engine = get_engine()
-
     Base.metadata.create_all(engine)
-
-    # conn = sqlite3.connect(DB_PATH)
-    # cursor = conn.cursor()
-
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE IF NOT EXISTS originals (
-    #         id INTEGER PRIMARY KEY,
-    #         file_path TEXT,
-    #         original_name TEXT,
-    #         height INT,
-    #         width INT,
-    #         img_hash TEXT,
-    #         file_hash TEXT
-    #     )
-    # """
-    # )
-
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE IF NOT EXISTS faces (
-    #         id INTEGER PRIMARY KEY,
-    #         image_id INTEGER,
-    #         top INTEGER,
-    #         right INTEGER,
-    #         bottom INTEGER,
-    #         left INTEGER,
-    #         hidden INTEGER,
-    #         hidden_reason INTEGER,
-    #         extracted_path TEXT,
-    #         person_id INTEGER,
-    #         person_source INTEGER,
-    #         excluded_people TEXT,
-    #         embedding_json TEXT
-    #     )
-    # """
-    # )
-
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE IF NOT EXISTS people (
-    #         id INTEGER PRIMARY KEY,
-    #         name TEXT
-    #     )
-    # """
-    # )
-
-    # cursor.close()
-    # conn.close()
 
 
 def new_person(name: str) -> int:
