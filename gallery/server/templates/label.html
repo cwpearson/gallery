@@ -2,7 +2,7 @@
 {% block title %}Label{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/label.css">
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/static/css/label.css">
 {% endblock %}
 {% block content %}
 <h1>Label</h1>
@@ -18,11 +18,11 @@
     <div class="record">
         <div class="id">{{ record[0] }}</div>
         <div class="face-tile">
-            <div class="img-face"><img src="{{ record[1] }}" /></div>
+            <div class="img-face"><img src="/static/face/{{ record[1] }}" /></div>
             path here
         </div>
         <div class="orig-tile">
-            <div class="img-orig"><img src="{{ record[2] }}" /></div>
+            <div class="img-orig"><img src="/static/image/{{ record[2] }}" /></div>
             {{ record[3] }}
         </div>
         <label for="{{ record[0] }}-name">name</label>

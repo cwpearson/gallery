@@ -1,6 +1,16 @@
 import sqlite3
+import hashlib
 
 from gallery import model
+
+
+def hash_image_data(img) -> str:
+    pixel_data = [x for xs in list(img.getdata()) for x in xs]
+    return hashlib.sha256(bytes(pixel_data)).hexdigest()
+
+
+def hash_file_data(f) -> str:
+    return hashlib.sha256(f.read()).hexdigest()
 
 
 def input_yn(prompt: str) -> bool:

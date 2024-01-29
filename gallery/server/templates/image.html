@@ -2,13 +2,13 @@
 {% block title %}Image{{ image_id }}{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/image.css">
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/static/css/image.css">
 {% endblock %}
 {% block content %}
 <h1>Image {{ image_id }}</h1>
 
 <div class="image">
-    <img src="/{{ img_path }}" />
+    <img src="/static/image/{{ img_path }}" />
 </div>
 <div>{{ image_id }}</div>
 <div>{{ width }} x {{ height }}</div>
@@ -20,11 +20,11 @@
 <div class="faces">
     {% for face in faces %}
     <div class="face">
-        <div>{{ face[0] }}</div>
-        <div>Face {{ face[2] }}</div>
-        <img src="/{{ face[0] }}" />
-        {% if face[1] %}
-        <a href="/person/{{ face[1] }}">Person {{ face[1] }}</a>
+        <div>{{ face.src }}</div>
+        <div>Face {{ face.id }}</div>
+        <img src="/static/face/{{ face.src }}" />
+        {% if face.person_id %}
+        <a href="/person/{{ face.person_id }}">Person {{ face.person_id }}</a>
         {% endif %}
     </div>
     {% endfor %}

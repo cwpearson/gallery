@@ -2,19 +2,19 @@
 {% block title %}Gallery{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" type="text/css" href="/gallery/server/css/gallery.css">
+<link rel="stylesheet" type="text/css" href="/static/css/gallery.css">
 {% endblock %}
 {% block content %}
 <h1>Gallery</h1>
 
-<a href="/view?offset={{next_offset}}&limit={{next_limit}}">next</a>
-<a href="/view?offset={{prev_offset}}&limit={{prev_limit}}">prev</a>
+<a href="/gallery?offset={{prev_offset}}&limit={{prev_limit}}">prev</a>
+<a href="/gallery?offset={{next_offset}}&limit={{next_limit}}">next</a>
 
 <div class="gallery">
     {% for image in images %}
     <div class="tile">
         <div class="image">
-            <img src="/{{ image_prefix }}/{{ image.file_name }}" />
+            <img src="/static/image/{{ image.file_name }}" />
         </div>
         <div class="link">
             <a href="/image/{{ image.id }}">View/Edit</a>

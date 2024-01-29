@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Results{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" href="/static/css/results.css">
+{% endblock %}
+{% block content %}
+<h1>Results</h1>
+
+{{ query }}
+
+<div class="results">
+    {% for image in images %}
+    <div class="row">
+        <img src="/static/image/{{ image.file_name }}" />
+        <a href="/image/{{ image.id }}">View</a>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

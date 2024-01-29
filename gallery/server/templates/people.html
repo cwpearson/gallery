@@ -2,7 +2,7 @@
 {% block title %}People{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/gallery/server/css/people.css">
+<link rel="stylesheet" type="text/css" rel="noopener" target="_blank" href="/static/css/people.css">
 {% endblock %}
 {% block content %}
 <h1>People</h1>
@@ -11,7 +11,7 @@
 
 <ul>
     {% for person in people %}
-    <li><a href="/person/{{ person[0] }}">{{ person[1]}}</a></li>
+    <li><a href="/person/{{ person.id }}">{{ person.name }}</a></li>
     {% endfor %}
 </ul>
 {% endblock %}

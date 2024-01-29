@@ -1,0 +1,17 @@
+.results {
+    display: flex;
+    flex-flow: column;
+
+    .row {
+        /* width: 100%; */
+        max-height: 400px;
+        border: 1rem solid green;
+        margin: 1rem;
+
+        img {
+            object-fit: contain;
+            max-width: 100%;
+            height: 100%;
+        }
+    }
+}

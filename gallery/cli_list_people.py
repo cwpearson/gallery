@@ -2,7 +2,6 @@ import sqlite3
 import sys
 
 from gallery import model
-from gallery.cli_add_original import update_labels
 
 if __name__ == "__main__":
     model.init()
