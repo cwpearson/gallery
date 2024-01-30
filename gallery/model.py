@@ -5,13 +5,12 @@ import json
 from typing import Tuple
 import datetime
 import shutil
+from typing import List
 
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
-from sqlalchemy import Text, Integer, DateTime
+
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
+from sqlalchemy import Text, Integer, DateTime, ForeignKey
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 import face_recognition
@@ -26,6 +25,7 @@ from whoosh.index import create_in, open_dir
 import whoosh.fields
 from whoosh.writing import AsyncWriter
 import whoosh
+from whoosh.qparser import QueryParser
 
 PERSON_SOURCE_MANUAL = 1
 PERSON_SOURCE_AUTOMATIC = 2
@@ -43,7 +43,7 @@ DB_PATH = CACHE_DIR / "gallery.db"
 WHOOSH_DIR = CACHE_DIR / "whoosh"
 
 WHOOSH_SCHEMA = whoosh.fields.Schema(
-    id=whoosh.fields.ID(stored=True),
+    id=whoosh.fields.NUMERIC(stored=True),
     comment=whoosh.fields.TEXT,
 )
 
@@ -59,18 +59,25 @@ class Image(Base):
     original_name: Mapped[str] = mapped_column(Text)
     height: Mapped[int] = mapped_column(Integer)
     width: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(Text, nullable=True)
+    archived: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )  # time in UTC
     image_hash: Mapped[str] = mapped_column(Text)  # hash of the image data
     file_hash: Mapped[str] = mapped_column(Text)  # hash of the file data
     comment: Mapped[str] = mapped_column(Text, default="")
+    faces: Mapped[List["Face"]] = relationship(
+        back_populates="image",  # Face.image
+        cascade="all, delete-orphan",
+    )
 
 
 class Face(Base):
     __tablename__ = "faces"
     id: Mapped[int] = mapped_column(primary_key=True)
-    image_id: Mapped[int] = mapped_column(Integer)
+    image_id: Mapped[int] = mapped_column(ForeignKey("images.id"))
+    image: Mapped["Image"] = relationship(back_populates="faces")  # Image.faces
     top: Mapped[int] = mapped_column(Integer)
     right: Mapped[int] = mapped_column(Integer)
     bottom: Mapped[int] = mapped_column(Integer)
@@ -108,11 +115,7 @@ def init():
     engine = get_engine()
     Base.metadata.create_all(engine)
 
-    # whoosh database
-    WHOOSH_DIR.mkdir(exist_ok=True, parents=True)
-    if not whoosh.index.exists_in(WHOOSH_DIR):
-        print(f"creating whoosh index in {WHOOSH_DIR}")
-        create_in(WHOOSH_DIR, WHOOSH_SCHEMA)
+    # woosh database is lazily created
 
 
 def new_person(name: str) -> int:
@@ -488,9 +491,6 @@ def add_original(image_path) -> int:
         pil_img = PilImage.open(file)
         img_hash = utils.hash_image_data(pil_img)
 
-    whoosh_ix = open_dir(WHOOSH_DIR)
-    whoosh_writer = AsyncWriter(whoosh_ix)
-
     with Session(get_engine()) as session:
         stmt = select(Image).where(Image.image_hash == img_hash)
 
@@ -524,10 +524,59 @@ def add_original(image_path) -> int:
             session.add(img)
             session.commit()
 
-            whoosh_writer.add_document(
-                id=str(img.id),
-                comment=comment,
-            )
-            whoosh_writer.commit()
-
             return img.id
+
+
+def incremental_index():
+    """index any unindexed files"""
+
+    # whoosh database
+    WHOOSH_DIR.mkdir(exist_ok=True, parents=True)
+    if not whoosh.index.exists_in(WHOOSH_DIR):
+        print(f"creating whoosh index in {WHOOSH_DIR}")
+        create_in(WHOOSH_DIR, WHOOSH_SCHEMA)
+
+    ix = open_dir(WHOOSH_DIR)
+    writer = ix.writer()
+
+    with Session(get_engine()) as session:
+        images = session.scalars(select(Image)).all()
+
+        for image in images:
+            # check if this image has been index
+            with ix.searcher() as s:
+                q = QueryParser("id", ix.schema).parse(f"id:{image.id}")
+                results = s.search(q)
+                # Check if any results are found
+                if results:
+                    print(f"Image {image.id} already indexed")
+                else:
+                    print(f"add document id={image.id}")
+                    writer.add_document(
+                        id=image.id,
+                        comment=image.comment,
+                    )
+    writer.commit()
+
+
+def get_image_title(session: Session, image_id: int) -> str:
+    """
+    Return a title for an image
+    1. The title field, if it's set
+    2. The name of the person in the image, if there is only one person
+    3. The original file name
+    """
+
+    image = session.scalars(select(Image).where(Image.id == image_id)).one()
+
+    if image.title != "" and image.title is not None:
+        return image.title
+
+    people_ids = [face.person_id for face in image.faces if face.person_id is not None]
+    people_ids = list(set(people_ids))  # uniquify
+
+    if len(people_ids) == 1:
+        person = session.scalars(select(Person).where(Person.id == people_ids[0])).one()
+        return person.name
+
+    return image.original_name

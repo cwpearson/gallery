@@ -1,6 +1,15 @@
+.image-and-metadata {
+    display: flex;
+    flex-flow: row wrap;
+}
+
 .image {
-    height: 300px;
-    width: 300px;
+    border: 2px solid red;
+    height: 70dvh;
+    width: 69dvw;
+    flex-grow: 0;
+    /* height: 300px; */
+    /* width: 300px; */
 
     img {
         object-fit: contain;
@@ -9,7 +18,15 @@
     }
 }
 
+.metadata {
+    border: 2px solid blue;
+    text-wrap: wrap;
+    overflow-wrap: break-word;
+    width: 29dvw;
+}
+
 .faces {
+    border: 2px solid green;
     display: flex;
     flex-flow: row wrap;
 

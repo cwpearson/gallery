@@ -5,7 +5,7 @@
     .tile {
         max-width: 300px;
         /* max-height: 400px; */
-        border: 1rem solid green;
+        border: 2px solid green;
         margin: 1rem;
 
         img {

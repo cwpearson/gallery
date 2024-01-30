@@ -47,6 +47,7 @@ def bp_upload_files(request: Request):
                     f.write(file.body)
                 cli_add_original.add_original(uploaded_path)
 
+    model.incremental_index()
     model.detect_faces()
     model.generate_embeddings()
     model.update_labels()

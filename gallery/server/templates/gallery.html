@@ -14,11 +14,11 @@
     {% for image in images %}
     <div class="tile">
         <div class="image">
-            <img src="/static/image/{{ image.file_name }}" />
+            <a href="/image/{{ image.id }}">
+                <img src="/static/image/{{ image.file_name }}" />
+            </a>
         </div>
-        <div class="link">
-            <a href="/image/{{ image.id }}">View/Edit</a>
-        </div>
+        {{titles[loop.index0]}}
     </div>
     {% endfor %}
 </div>

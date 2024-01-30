@@ -13,6 +13,8 @@ if __name__ == "__main__":
     with multiprocessing.Pool(model.CPUS) as p:
         p.map(model.add_original, sys.argv[1:])
 
+    model.incremental_index()
+
     with Session(model.get_engine()) as session:
         images = session.scalars(select(model.Image)).all()
         with multiprocessing.Pool(model.CPUS) as p:

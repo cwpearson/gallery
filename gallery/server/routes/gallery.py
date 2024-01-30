@@ -31,6 +31,10 @@ def bp_gallery(request: Request):
     limit = int(request.args.get("limit"))
     offset = int(request.args.get("offset"))
     print(f"limit={limit} offset={offset}")
+    next_offset = offset + limit
+    prev_offset = max(0, offset - limit)
+    next_limit = limit
+    prev_limit = limit
 
     with Session(model.get_engine()) as session:
         images = session.scalars(
@@ -40,15 +44,13 @@ def bp_gallery(request: Request):
             .limit(limit)
         ).all()
 
-    next_offset = offset + limit
-    prev_offset = max(0, offset - limit)
-    next_limit = limit
-    prev_limit = limit
+        titles = [model.get_image_title(session, image.id) for image in images]
 
     template = env.get_template("gallery.html")
     return html(
         template.render(
             images=images,
+            titles=titles,
             next_offset=next_offset,
             prev_offset=prev_offset,
             next_limit=next_limit,

@@ -48,7 +48,7 @@ def bp_label_one(request: Request):
             face.person_source = model.PERSON_SOURCE_MANUAL
             session.commit()
 
-        cli_add_original.update_labels()
+        model.update_labels()
 
     # redirect back where we sumbitted the post from
     return redirect(request.headers.get("Referer"))

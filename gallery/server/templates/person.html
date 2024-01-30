@@ -8,7 +8,7 @@
 <h1>{{ person_name }}</h1>
 
 <datalist id="name-suggestions">
-    {% for s in name_suggestions %}
+    {% for s in all_names %}
     <option value="{{ s }}">
         {% endfor %}
 </datalist>
@@ -27,7 +27,7 @@
             <div class="image">
                 <img src="/static/face/{{ face.src }}" />
             </div>
-            <form class="exlcude" action="/api/v1/label-one" method="post">
+            <form class="label" action="/api/v1/label-one" method="post">
                 <input type="hidden" name="face_id" value="{{ face.id }}" />
                 <label for="name">name</label>
                 <input type="text" name="name" list="name-suggestions" />

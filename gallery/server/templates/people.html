@@ -11,7 +11,7 @@
 
 <ul>
     {% for person in people %}
-    <li><a href="/person/{{ person.id }}">{{ person.name }}</a></li>
+    <li><a href="/person/{{ person.id }}">{{ person.name }}</a> ({{ person.count }} images)</li>
     {% endfor %}
 </ul>
 {% endblock %}

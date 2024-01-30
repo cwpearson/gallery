@@ -7,6 +7,9 @@
 {% block content %}
 <h1>Label</h1>
 
+<a href="/label?offset={{prev_offset}}&limit={{prev_limit}}">prev</a>
+<a href="/label?offset={{next_offset}}&limit={{next_limit}}">next</a>
+
 <form class="records" action="/api/v1/label-many" method="post">
     <datalist id="name-suggestions">
         {% for s in name_suggestions %}

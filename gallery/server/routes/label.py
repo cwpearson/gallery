@@ -26,10 +26,22 @@ bp = Blueprint("label")
 def bp_label(request: Request):
     print("at /label")
 
+    limit = int(request.args.get("limit", 25))
+    offset = int(request.args.get("offset", 0))
+    print(f"limit={limit} offset={offset}")
+    next_offset = offset + limit
+    prev_offset = max(0, offset - limit)
+    next_limit = limit
+    prev_limit = limit
+
     # retrieve all unlabeled faces
     with Session(model.get_engine()) as session:
         faces = session.scalars(
-            select(Face).where(Face.person_id == None).where(Face.hidden == False)
+            select(Face)
+            .where(Face.person_id == None)
+            .where(Face.hidden == False)
+            .offset(offset)
+            .limit(limit)
         ).all()
 
         # for each unlabeled face, retrieve the image the face is from
@@ -53,5 +65,9 @@ def bp_label(request: Request):
         template.render(
             records=records,
             name_suggestions=name_suggestions,
+            prev_offset=prev_offset,
+            prev_limit=prev_limit,
+            next_offset=next_offset,
+            next_limit=next_limit,
         )
     )
