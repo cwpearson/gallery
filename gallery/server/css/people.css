@@ -1,0 +1,22 @@
+.tiles {
+    display: flex;
+    flex-flow: row wrap;
+
+    .tile {
+        border: 2px solid orange;
+
+
+        .image {
+            /* max-width: 200px;
+            max-height: 200px; */
+            border: 2px solid green;
+            margin: 1rem;
+
+            img {
+                object-fit: contain;
+                width: 200px;
+                height: 200px;
+            }
+        }
+    }
+}

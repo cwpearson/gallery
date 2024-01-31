@@ -77,7 +77,6 @@ class Face(Base):
     __tablename__ = "faces"
     id: Mapped[int] = mapped_column(primary_key=True)
     image_id: Mapped[int] = mapped_column(ForeignKey("images.id"))
-    image: Mapped["Image"] = relationship(back_populates="faces")  # Image.faces
     top: Mapped[int] = mapped_column(Integer)
     right: Mapped[int] = mapped_column(Integer)
     bottom: Mapped[int] = mapped_column(Integer)
@@ -85,16 +84,23 @@ class Face(Base):
     hidden: Mapped[int] = mapped_column(Integer)
     hidden_reason: Mapped[int] = mapped_column(Integer, nullable=True)
     extracted_path: Mapped[str] = mapped_column(Text)
-    person_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), nullable=True)
     person_source: Mapped[int] = mapped_column(Integer, nullable=True)
     excluded_people: Mapped[str] = mapped_column(Text)
     embedding_json: Mapped[str] = mapped_column(Text, nullable=True)
+
+    person: Mapped["Person"] = relationship(back_populates="faces")  # Person.faces
+    image: Mapped["Image"] = relationship(back_populates="faces")  # Image.faces
 
 
 class Person(Base):
     __tablename__ = "people"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
+
+    faces: Mapped[List["Face"]] = relationship(
+        back_populates="person",  # Face.person
+    )
 
 
 ENGINE = None
@@ -310,7 +316,7 @@ def detect_face(image_id):
 
                 print(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
                 face_is_small = (
-                    face_height / image.height < 0.04 or face_width / image.width < 0.04
+                    face_height / image.height < 0.03 or face_width / image.width < 0.03
                 )
                 hidden = False
                 hidden_reason = None
@@ -392,6 +398,21 @@ def generate_embeddings():
             session.commit()
 
 
+def remove_empty_people(session: Session):
+    """remove any people that are not referenced by a face"""
+
+    people = session.scalars(select(Person)).all()
+
+    for person in people:
+        faces = session.scalars(select(Face).where(Face.person_id == person.id)).all()
+
+        if not faces:
+            print(f"delete unreferenced person {person.id}")
+            session.delete(person)
+
+    session.commit()
+
+
 def update_labels():
     """
     Cluster all the embeddings with DBSCAN
@@ -408,7 +429,11 @@ def update_labels():
 
     X = np.array(embeddings)
 
-    clustering = DBSCAN(eps=0.44, min_samples=3, metric="euclidean").fit(X)
+    # eps = 0.44
+    eps = 0.45
+    # min_samples = 3
+    min_samples = 1
+    clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
     # print(clustering.labels_)
 
     clusters = {}
@@ -423,22 +448,25 @@ def update_labels():
 
         # print(f"processing cluster {cluster_id}")
 
-        cluster_labeled_faces = []
+        cluster_manual_faces = []
+        cluster_auto_faces = []
         for xi in xis:
-            label, reason = get_face_person(face_ids[xi])
+            person_id, reason = get_face_person(face_ids[xi])
             if reason == PERSON_SOURCE_MANUAL:
-                cluster_labeled_faces += [(xi, label, reason)]
+                cluster_manual_faces += [(xi, person_id)]
+            elif reason == PERSON_SOURCE_AUTOMATIC:
+                cluster_auto_faces += [(xi, person_id)]
 
-        # print(cluster_labeled_faces)
+        # print(cluster_manual_faces)
 
         # label each unlabeled face in the cluster to the closest labeled face in the cluster
-        if cluster_labeled_faces:
-            for xi in xis:
+        if cluster_manual_faces:
+            for xi in xis:  # each face in the cluster
                 _, reason = get_face_person(face_ids[xi])
                 if reason != PERSON_SOURCE_MANUAL:
                     min_dist_label = None
                     min_dist = 100000000  # big number
-                    for labeled_xi, label, _ in cluster_labeled_faces:
+                    for labeled_xi, label in cluster_manual_faces:
                         if labeled_xi != xi:
                             dist = face_recognition.face_distance(
                                 [np.array(embeddings[labeled_xi])],
@@ -462,9 +490,47 @@ def update_labels():
                             )
                 else:
                     pass  # this face in this cluster was already labeled
+        elif cluster_auto_faces:
+            # FIXME: label each unlabeled face in the cluster with the closest auto-labeled face
+            # factor out code above and reuse here
+            for xi in xis:  # each face in the cluster
+                current_person_id, _ = get_face_person(face_ids[xi])
+                if current_person_id is None:
+                    min_dist_label = None
+                    min_dist = 100000000  # big number
+                    for labeled_xi, label in cluster_manual_faces:
+                        if labeled_xi != xi:
+                            dist = face_recognition.face_distance(
+                                [np.array(embeddings[labeled_xi])],
+                                np.array(embeddings[xi]),
+                            )[0]
+                            # print(f"dist with {xi} is {dist}")
+                            if dist < min_dist and dist < 0.5:
+                                min_dist_label = label
+                                min_dist = dist
+
+                    if min_dist_label:  # if a near-enough label was detected
+                        print(f"updated unlabeled xi={xi} to {min_dist_label}")
+                        set_face_person(
+                            face_ids[xi],
+                            min_dist_label,
+                            PERSON_SOURCE_AUTOMATIC,
+                        )
         else:
-            # print(f"no labels faces in cluster {cluster_id}")
-            pass
+            # print(f"no labeled faces in cluster {cluster_id}")
+
+            # create a new anonymous person
+            anon_person_id = new_person("")
+            print(
+                f"created anonymous person={anon_person_id} for unlabeled face cluster"
+            )
+
+            # label all faces in the cluster as that person
+            for xi in xis:
+                set_face_person(face_ids[xi], anon_person_id, PERSON_SOURCE_AUTOMATIC)
+
+    with Session(get_engine()) as session:
+        remove_empty_people(session)
 
 
 def add_original(image_path) -> int:
@@ -563,12 +629,14 @@ def get_image_title(session: Session, image_id: int) -> str:
     """
     Return a title for an image
     1. The title field, if it's set
-    2. The name of the person in the image, if there is only one person
+    2. The name of the person in the image
+      2. a. if there is only one person and that person has a name
     3. The original file name
     """
 
     image = session.scalars(select(Image).where(Image.id == image_id)).one()
 
+    # return title if set
     if image.title != "" and image.title is not None:
         return image.title
 
@@ -577,6 +645,7 @@ def get_image_title(session: Session, image_id: int) -> str:
 
     if len(people_ids) == 1:
         person = session.scalars(select(Person).where(Person.id == people_ids[0])).one()
-        return person.name
+        if person.name:
+            return person.name
 
     return image.original_name

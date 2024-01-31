@@ -37,13 +37,28 @@ def bp_people(request: Request):
 
         counts = {id: count for id, count in people_counts}
 
-        people = [
-            {"id": person.id, "name": person.name, "count": counts.get(person.id, 0)}
-            for person in people
-        ]
+        people_data = []
+        for person in people:
+            if person.name == "":
+                display_name = "<anon>"
+            else:
+                display_name = person.name
+            people_data += [
+                {
+                    "id": person.id,
+                    "name": display_name,
+                    "count": counts.get(person.id, 0),
+                    "thumb_src": person.faces[0].extracted_path,
+                }
+            ]
+
+        people_data = sorted(people_data, key=lambda pd: pd["count"], reverse=True)
+        people_data = sorted(
+            people_data, key=lambda pd: 1 if pd["name"] == "<anon>" else 0
+        )
 
         return html(
             template.render(
-                people=people,
+                people=people_data,
             )
         )

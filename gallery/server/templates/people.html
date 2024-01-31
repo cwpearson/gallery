@@ -9,9 +9,27 @@
 
 {# a comment #}
 
+<div class="tiles">
+    {% for person in people %}
+    <div class="tile">
+        <div class="image">
+            <a href="/person/{{ person.id }}">
+                <img src="/static/face/{{ person.thumb_src }}" />
+            </a>
+        </div>
+        <div class="name">
+            {{ person.name }}
+        </div>
+        <div class="count">
+            ({{ person.count }} images)
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 <ul>
     {% for person in people %}
-    <li><a href="/person/{{ person.id }}">{{ person.name }}</a> ({{ person.count }} images)</li>
+    <li><a href="/person/{{ person.id }}">{{ person.name }}</a> ({{ person.count }} images) {{ person.thumb_src }}</li>
     {% endfor %}
 </ul>
 {% endblock %}

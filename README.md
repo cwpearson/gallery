@@ -30,18 +30,25 @@ Browse to http://localhost:8000
 - [x] "Bulk Label"
   - [x] Paginate
 - [ ] "Person" page
-  - [ ] Change name
-  - [ ] Delete
+  - [ ] Rename
+  - [x] Delete
   - [x] Edit whether a detected face is actually this person
+  - [x] Assignging a name to a face of an anonymous person will cause that face cluster to all be marked as that person, and then the empty anonymous person will be garbage-collected and the redirect back to the person page will fail because that person has been deleted
+    - [ ] make a person page to a non-existent person redirect to /people?
 - [ ] Merge people from GUI
 - [ ] "People" Page
+  - [ ] sort by number of people
   - [ ] Little thumbnail by each person
+  - [x] show anonymous people as well
 - [ ] "Image" page
   - [x] Don't error out if not
   - [x] Visible Faces
     - [x] Assign person to face
-    - [x] Display person's name instead of ID if assigned
+    - [x] Display person's name instead of ID if 
+    assigned
+    - [ ] add a "hide" button
   - [x] Hidden Faces
+    - [ ] add an unhide button
   - [x] Delete
 - [x] use the `not_people_json` field of `faces` table to store ids of people the user has said this face is not
   - [ ] when auto-labeling, find the closest labeled face that is not one of these people

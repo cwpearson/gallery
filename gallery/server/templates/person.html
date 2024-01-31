@@ -17,10 +17,9 @@
     {% for image in images %}
     <div class="tile">
         <div class="image">
-            <img src="/static/image/{{ image.src }}" />
-        </div>
-        <div class="link">
-            <a href="/image/{{ image.id }}">View/Edit</a>
+            <a href="/image/{{ image.id }}">
+                <img src="/static/image/{{ image.src }}" />
+            </a>
         </div>
         <div class="faces">
             {% for face in image.faces %}
@@ -38,4 +37,11 @@
     </div>
     {% endfor %}
 </div>
+
+<form class="label" action="/api/v1/delete-person" method="post">
+    <input type="hidden" name="id" value="{{ person_id }}" />
+    <input type="hidden" name="redirect_to" value="/people" />
+    <input type="submit" value="delete" />
+</form>
+
 {% endblock %}

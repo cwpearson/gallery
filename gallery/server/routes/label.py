@@ -7,7 +7,7 @@ from sanic import Blueprint
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from gallery import model
 from gallery.model import Face, Image, Person
@@ -34,12 +34,17 @@ def bp_label(request: Request):
     next_limit = limit
     prev_limit = limit
 
-    # retrieve all unlabeled faces
+    # retrieve all faces that are unlabele
     with Session(model.get_engine()) as session:
         faces = session.scalars(
             select(Face)
-            .where(Face.person_id == None)
             .where(Face.hidden == False)
+            .where(
+                or_(
+                    Face.person_id == None,
+                    Face.person_source == model.PERSON_SOURCE_AUTOMATIC,
+                )
+            )
             .offset(offset)
             .limit(limit)
         ).all()
@@ -51,7 +56,13 @@ def bp_label(request: Request):
                 select(Image).where(Image.id == face.image_id)
             ).one()
             records += [
-                (face.id, face.extracted_path, image.file_name, image.original_name)
+                {
+                    "face_id": face.id,
+                    "face_src": face.extracted_path,
+                    "image_id": image.id,
+                    "image_src": image.file_name,
+                    "image_title": model.get_image_title(session, image.id),
+                }
             ]
 
     print(f"handle_label: {len(records)} records")

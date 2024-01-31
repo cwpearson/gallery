@@ -32,21 +32,25 @@ def bp_person(request: Request, person_id: int):
         person = session.scalars(select(Person).where(Person.id == person_id)).one()
 
         # get all faces for this person
-        faces = session.scalars(select(Face).where(Face.person_id == person_id)).all()
+        # faces = session.scalars(select(Face).where(Face.person_id == person_id)).all()
+        faces = person.faces
 
         # get the image that has this face
-        images: list[Image] = []
-        for face in faces:
-            images += [
-                session.scalars(select(Image).where(Image.id == face.image_id)).one()
-            ]
+        # images: list[Image] = []
+        # for face in faces:
+        #     images += [
+        #         session.scalars(select(Image).where(Image.id == face.image_id)).one()
+        #     ]
+        images = [face.image for face in faces]
+        images = list(set(images))
 
         for image in images:
-            # get faces from this image that are of this person
+            # get faces from this image that are of this person (some images contain two of the same person!)
             faces_of_person = session.scalars(
                 select(Face)
                 .where(Face.person_id == person_id)
                 .where(Face.image_id == image.id)
+                .where(Face.hidden == 0)
             ).all()
 
             faces_to_show = [
@@ -71,9 +75,14 @@ def bp_person(request: Request, person_id: int):
 
     template = env.get_template("person.html")
 
+    if person.name:
+        display_name = person.name
+    else:
+        display_name = "Anonymous Person"
+
     return html(
         template.render(
-            person_name=person.name,
+            person_name=display_name,
             person_id=person.id,
             images=images_to_show,
             name_suggestions=name_suggestions,

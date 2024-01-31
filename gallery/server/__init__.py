@@ -7,6 +7,7 @@ from sanic.response import html, text
 from gallery.server.routes import (
     root,
     delete_image,
+    delete_person,
     gallery,
     image,
     label_one,
@@ -38,3 +39,4 @@ app.blueprint(image.bp)
 app.blueprint(search.bp_get)
 app.blueprint(search.bp_post)
 app.blueprint(delete_image.bp)
+app.blueprint(delete_person.bp)
