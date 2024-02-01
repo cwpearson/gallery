@@ -32,6 +32,10 @@
                 <input type="text" name="name" list="name-suggestions" />
                 <input type="submit" value="submit" />
             </form>
+            <form class="label" action="/api/v1/hide-face" method="post">
+                <input type="hidden" name="face_id" value="{{ face.id }}" />
+                <input type="submit" value="hide" />
+            </form>
             {% endfor %}
         </div>
     </div>

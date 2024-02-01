@@ -19,11 +19,27 @@
         </a>
     </div>
     <div class="metadata">
-        <div>Image {{ image_id }}</div>
-        <div>{{ width }} x {{ height }}</div>
-        <div>Content Hash: {{ img_hash }}</div>
-        <div>Original File Name: {{ original_name }}</div>
-        <div>Original File Hash: {{ file_hash }}</div>
+        <div class="meta-pair">
+            <div class="meta-key">Image:</div>
+            <div class="meta-val">{{ image_id }}</div>
+        </div>
+        <div class="meta-pair">
+            <div class="meta-key">Dimensions:</div>
+            <div class="meta-val">{{ width }} x {{ height }}</div>
+        </div>
+        <div class="meta-pair">
+            <div class="meta-key">Content Hash:</div>
+            <div class="meta-val">{{ img_hash }}</div>
+        </div>
+        <div class="meta-pair">
+            <div class="meta-key">Original File Name:</div>
+            <div class="meta-val">{{ original_name }}</div>
+        </div>
+        <div class="meta-pair">
+            <div class="meta-key">Original File Hash:</div>
+            <div class="meta-val">{{ file_hash }}</div>
+        </div>
+        <div class="meta-key">Comment:</div>
         <div class="comment">
             {{ comment }}
         </div>

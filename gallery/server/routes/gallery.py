@@ -28,8 +28,8 @@ def bp_gallery(request: Request):
     print("at /gallery")
 
     # retrieve limit and offset
-    limit = int(request.args.get("limit"))
-    offset = int(request.args.get("offset"))
+    limit = int(request.args.get("limit", 24))
+    offset = int(request.args.get("offset", 0))
     print(f"limit={limit} offset={offset}")
     next_offset = offset + limit
     prev_offset = max(0, offset - limit)

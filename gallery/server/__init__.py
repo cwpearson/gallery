@@ -9,6 +9,7 @@ from gallery.server.routes import (
     delete_image,
     delete_person,
     gallery,
+    hide_face,
     image,
     label_one,
     label_many,
@@ -40,3 +41,4 @@ app.blueprint(search.bp_get)
 app.blueprint(search.bp_post)
 app.blueprint(delete_image.bp)
 app.blueprint(delete_person.bp)
+app.blueprint(hide_face.bp)

@@ -6,4 +6,4 @@ bp = Blueprint("root")
 
 @bp.route("/")
 def bp_root(request):
-    return redirect("/gallery?offset=0&limit=25")
+    return redirect("/gallery")

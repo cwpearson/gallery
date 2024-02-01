@@ -19,10 +19,36 @@
 }
 
 .metadata {
-    border: 2px solid blue;
-    text-wrap: wrap;
-    overflow-wrap: break-word;
+    border: 2px solid green;
     width: 29dvw;
+}
+
+
+.meta-pair {
+    display: flex;
+    flex-flow: row;
+}
+
+.meta-key {
+    border: 1px solid blue;
+    font-style: italic;
+    white-space: nowrap;
+}
+
+.meta-val {
+    border: 1px solid red;
+    /*seems with is needed to get the word to wrap*/
+    flex-grow: 1;
+    word-break: break-all;
+}
+
+/* .meta-key,
+.meta-val {
+    display: inline-block;
+} */
+
+.comment {
+    margin-left: 0.5rem;
 }
 
 .faces {

@@ -1,17 +1,41 @@
+/*remove the small gap between the viewport and the content*/
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
 .gallery {
     display: flex;
     flex-flow: row wrap;
+    justify-content: space-evenly;
 
     .tile {
-        max-width: 300px;
+        /* border: 2px solid green; */
+        width: 90dvw;
         /* max-height: 400px; */
-        border: 2px solid green;
-        margin: 1rem;
+        margin: 0.5rem;
+        text-align: center;
+        background-color: #cbc4c4;
 
         img {
             object-fit: contain;
             max-width: 100%;
             max-height: 100%;
         }
+    }
+}
+
+/* Medium screens (greater than or equal to 600px) */
+@media (min-width: 600px) {
+    .gallery .tile {
+        width: 40dvw;
+    }
+}
+
+/* Large screens (greater than or equal to 900px) */
+@media (min-width: 900px) {
+    .gallery .tile {
+        width: 20dvw;
     }
 }

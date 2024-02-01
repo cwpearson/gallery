@@ -37,8 +37,8 @@ Browse to http://localhost:8000
     - [ ] make a person page to a non-existent person redirect to /people?
 - [ ] Merge people from GUI
 - [ ] "People" Page
-  - [ ] sort by number of people
-  - [ ] Little thumbnail by each person
+  - [x] sort by number of people
+  - [x] Little thumbnail by each person
   - [x] show anonymous people as well
 - [ ] "Image" page
   - [x] Don't error out if not
