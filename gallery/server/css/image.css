@@ -8,8 +8,6 @@
     height: 70dvh;
     width: 69dvw;
     flex-grow: 0;
-    /* height: 300px; */
-    /* width: 300px; */
 
     img {
         object-fit: contain;
@@ -37,15 +35,9 @@
 
 .meta-val {
     border: 1px solid red;
-    /*seems with is needed to get the word to wrap*/
     flex-grow: 1;
     word-break: break-all;
 }
-
-/* .meta-key,
-.meta-val {
-    display: inline-block;
-} */
 
 .comment {
     margin-left: 0.5rem;

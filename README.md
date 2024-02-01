@@ -30,6 +30,8 @@ Browse to http://localhost:8000
 - [x] "Bulk Label"
   - [x] Paginate
 - [ ] "Person" page
+  - [ ] it seems possible for an image to show up on the person page, but no face is beneath it.
+    - [ ] perhaps the image is being included despite a face being hidden?
   - [ ] Rename
   - [x] Delete
   - [x] Edit whether a detected face is actually this person

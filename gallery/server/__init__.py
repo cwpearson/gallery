@@ -14,6 +14,8 @@ from gallery.server.routes import (
     label_one,
     label_many,
     label,
+    name_person,
+    new_people,
     people,
     person,
     search,
@@ -34,6 +36,8 @@ app.blueprint(upload.bp)
 app.blueprint(label_one.bp)
 app.blueprint(label_many.bp)
 app.blueprint(label.bp)
+app.blueprint(name_person.bp)
+app.blueprint(new_people.bp)
 app.blueprint(people.bp)
 app.blueprint(person.bp)
 app.blueprint(image.bp)

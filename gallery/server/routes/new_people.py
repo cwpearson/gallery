@@ -7,7 +7,7 @@ from sanic import Blueprint
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, or_, desc
 
 from gallery import model
 from gallery.model import Person, Face
@@ -19,16 +19,12 @@ env = Environment(
 )
 
 
-bp = Blueprint("people")
+bp = Blueprint("new-people")
 
 
-@bp.get("/people")
-def bp_people(request: Request):
-    """
-    All known people
-    """
-
-    print("at /people")
+@bp.get("/new_people")
+def bp_new_people(request: Request):
+    print("at /new_people")
 
     limit = int(request.args.get("limit", 25))
     offset = int(request.args.get("offset", 0))
@@ -39,29 +35,6 @@ def bp_people(request: Request):
     prev_limit = limit
 
     with Session(model.get_engine()) as session:
-        # people = session.scalars(
-        #     select(Person).where(Person.name != "").where(Person.name != None)
-        # ).all()
-
-        # people_counts = (
-        #     session.query(Face.person_id, func.count(Face.person_id))
-        #     .where(Face.hidden == 0)
-        #     .group_by(Face.person_id)
-        # )
-        # counts = {id: count for id, count in people_counts}
-        # people_data = []
-        # for person in people:
-        #     unhidden_faces = [face for face in person.faces if face.hidden == 0]
-
-        #     people_data += [
-        #         {
-        #             "id": person.id,
-        #             "name": person.name,
-        #             "count": counts.get(person.id, 0),
-        #             "thumb_src": unhidden_faces[0].extracted_path,
-        #         }
-        #     ]
-
         faces_count_subquery = (
             select(Face.person_id, func.count(Face.person_id).label("face_count"))
             .where(Face.hidden == 0)
@@ -78,8 +51,7 @@ def bp_people(request: Request):
                 Person.id == faces_count_subquery.c.person_id,
                 isouter=True,
             )
-            .where(Person.name != "")
-            .where(Person.name != None)
+            .where(or_(Person.name == "", Person.name == None))
             .order_by(desc(faces_count_subquery.c.face_count))
             .limit(limit)
             .offset(offset)
@@ -95,7 +67,6 @@ def bp_people(request: Request):
             people_data += [
                 {
                     "id": person.id,
-                    "name": person.name,
                     "count": count,
                     "thumb_src": unhidden_faces[0].extracted_path,
                 }
@@ -103,10 +74,16 @@ def bp_people(request: Request):
 
         people_data = sorted(people_data, key=lambda pd: pd["count"], reverse=True)
 
-        template = env.get_template("people.html")
+        named_people = session.scalars(
+            select(Person).where(Person.name != None).where(Person.name != "")
+        ).all()
+        all_names = [p.name for p in named_people if p.name]
+
+        template = env.get_template("new_people.html")
         return html(
             template.render(
                 people=people_data,
+                all_names=all_names,
                 next_limit=next_limit,
                 next_offset=next_offset,
                 prev_limit=prev_limit,

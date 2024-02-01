@@ -31,7 +31,7 @@ def bp_person(request: Request):
             select(Person).where(Person.id == person_id)
         ).one_or_none()
         if person:
-            print("delete person id={person.id}")
+            print(f"delete person id={person.id}")
             session.delete(person)
             session.commit()
 

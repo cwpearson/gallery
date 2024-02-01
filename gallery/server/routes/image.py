@@ -63,7 +63,7 @@ def bp_image(request: Request, image_id: int):
             for face in hidden_faces
         ]
 
-        all_names = [p.name for p in session.scalars(select(Person)).all()]
+        all_names = [p.name for p in session.scalars(select(Person)).all() if p.name]
 
         template = env.get_template("image.html")
 

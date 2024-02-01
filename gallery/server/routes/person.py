@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sanic.response import html
+from sanic.response import html, redirect
 from sanic.request import Request
 from sanic import Blueprint
 
@@ -29,11 +29,17 @@ def bp_person(request: Request, person_id: int):
     images_to_show = []
     with Session(model.get_engine()) as session:
         # retrieve the person
-        person = session.scalars(select(Person).where(Person.id == person_id)).one()
+        person = session.scalars(
+            select(Person).where(Person.id == person_id)
+        ).one_or_none()
+
+        if not person:
+            print("no such person, redirecting to /people")
+            return redirect("/people")
 
         # get all faces for this person
         # faces = session.scalars(select(Face).where(Face.person_id == person_id)).all()
-        faces = person.faces
+        faces = [face for face in person.faces if face.hidden == 0]
 
         # get the image that has this face
         # images: list[Image] = []
@@ -61,7 +67,6 @@ def bp_person(request: Request, person_id: int):
                 for fop in faces_of_person
             ]
 
-            print(faces_to_show)
             images_to_show += [
                 {
                     "src": image.file_name,
@@ -71,7 +76,7 @@ def bp_person(request: Request, person_id: int):
             ]
 
         people = session.scalars(select(Person)).all()
-        name_suggestions = [p.name for p in people]
+        all_names = [p.name for p in people if p.name]
 
     template = env.get_template("person.html")
 
@@ -85,6 +90,6 @@ def bp_person(request: Request, person_id: int):
             person_name=display_name,
             person_id=person.id,
             images=images_to_show,
-            name_suggestions=name_suggestions,
+            all_names=all_names,
         )
     )
