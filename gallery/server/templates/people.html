@@ -6,8 +6,8 @@
 {% endblock %}
 
 {% block extra_nav_items %}
-<li><a href="/people?offset={{prev_offset}}&limit={{prev_limit}}">prev</a></li>
-<li><a href="/people?offset={{next_offset}}&limit={{next_limit}}">next</a></li>
+<div><a href="/people?offset={{prev_offset}}&limit={{prev_limit}}">&#8592</a></div>
+<div><a href="/people?offset={{next_offset}}&limit={{next_limit}}">&#8594</a></div>
 {% endblock %}
 
 {% block content %}

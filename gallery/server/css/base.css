@@ -12,10 +12,12 @@ body {
     overflow: hidden;
     background-color: #333;
 
-    li {
-        float: left;
-    }
+    display: flex;
+    flex-flow: row wrap;
 
+    #filler {
+        flex-grow: 1;
+    }
 
     a {
         display: block;
@@ -29,7 +31,6 @@ body {
         background-color: #ddd;
         color: black;
     }
-
 }
 
 #footer {

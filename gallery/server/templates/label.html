@@ -7,8 +7,8 @@
 {% block content %}
 <h1>Label Faces</h1>
 
-<a href="/label?offset={{prev_offset}}&limit={{prev_limit}}">prev</a>
-<a href="/label?offset={{next_offset}}&limit={{next_limit}}">next</a>
+<a href="/label?offset={{prev_offset}}&limit={{prev_limit}}">&#8594</a>
+<a href="/label?offset={{next_offset}}&limit={{next_limit}}">&#8592</a>
 
 <form class="records" action="/api/v1/label-many" method="post">
     <datalist id="name-suggestions">
