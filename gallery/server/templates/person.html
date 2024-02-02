@@ -13,6 +13,13 @@
         {% endfor %}
 </datalist>
 
+<form class="rename" action="/api/v1/name-person" method="post">
+    <label for="name">Rename</label>
+    <input type="hidden" name="id" value="{{ person_id }}" />
+    <input type="text" name="name" list="name-suggestions" />
+    <input type="submit" value="Submit" />
+</form>
+
 <div class="gallery">
     {% for image in images %}
     <div class="tile">

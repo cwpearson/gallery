@@ -294,10 +294,10 @@ def get_faces_for_original(
 
 def detect_face(image_id):
     with Session(get_engine()) as session:
-        image = session.get(Image, image_id)
         faces = session.scalars(select(Face).where(Face.image_id == image_id)).all()
 
         if not faces:
+            image = session.get(Image, image_id)
             image_path = ORIGINALS_DIR / image.file_name
             fr_image = face_recognition.load_image_file(image_path)
             locations = face_recognition.face_locations(fr_image)
@@ -678,6 +678,8 @@ def merge_people(session: Session, a: Person, b: Person) -> None:
         face.person = a
 
     # delete b
-    print(f"model.merge_people: delete {b.id}")
+    print(f"model.merge_people: delete person {b.id}")
     session.delete(b)
     session.commit()
+
+    update_labels()
