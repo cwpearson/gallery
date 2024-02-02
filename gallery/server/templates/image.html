@@ -19,74 +19,82 @@
         </a>
     </div>
     <div class="metadata">
-        <div class="meta-pair">
-            <div class="meta-key">Image:</div>
-            <div class="meta-val">{{ image_id }}</div>
-        </div>
-        <div class="meta-pair">
-            <div class="meta-key">Dimensions:</div>
-            <div class="meta-val">{{ width }} x {{ height }}</div>
-        </div>
-        <div class="meta-pair">
-            <div class="meta-key">Content Hash:</div>
-            <div class="meta-val">{{ img_hash }}</div>
-        </div>
-        <div class="meta-pair">
-            <div class="meta-key">Original File Name:</div>
-            <div class="meta-val">{{ original_name }}</div>
-        </div>
-        <div class="meta-pair">
-            <div class="meta-key">Original File Hash:</div>
-            <div class="meta-val">{{ file_hash }}</div>
-        </div>
         <div class="meta-key">Comment:</div>
         <div class="comment">
             {{ comment }}
         </div>
+        <hr>
+        <div class="meta-pair">
+            <div class="meta-key">Dimensions:</div>
+            <div class="meta-val">{{ width }} x {{ height }}</div>
+        </div>
+        <hr>
+        <div class="meta-pair">
+            <div class="meta-key">Content Hash:</div>
+            <div class="meta-val monospace">{{ img_hash }}</div>
+        </div>
+        <hr>
+        <div class="meta-pair">
+            <div class="meta-key">Original File Name:</div>
+            <div class="meta-val monospace">{{ original_name }}</div>
+        </div>
+        <hr>
+        <div class="meta-pair">
+            <div class="meta-key">Original File Hash:</div>
+            <div class="meta-val monospace">{{ file_hash }}</div>
+        </div>
+        <hr>
+        <div class="meta-pair">
+            <div class="meta-key">Image:</div>
+            <div class="meta-val">{{ image_id }}</div>
+        </div>
     </div>
-    <form class="label" action="/api/v1/delete-image" method="post">
-        <input type="hidden" name="id" value="{{ image_id }}" />
-        <input type="hidden" name="redirect_to" value="/" />
-        <input type="submit" value="delete" />
-    </form>
 </div>
+
+<form class="label" action="/api/v1/delete-image" method="post">
+    <input type="hidden" name="id" value="{{ image_id }}" />
+    <input type="hidden" name="redirect_to" value="/" />
+    <input type="submit" value="delete" />
+</form>
 
 <h2> Detected Faces </h2>
 <div class="faces">
     {% for face in faces %}
     <div class="face">
-        <div>{{ face.src }}</div>
-        <div>Face {{ face.id }}</div>
-        <img src="/static/face/{{ face.src }}" />
+        <div>
+            <img src="/static/face/{{ face.src }}" title="Face {{ face.id }}, {{ face.src }}" />
+        </div>
         {% if face.person_id %}
-        <a href="/person/{{ face.person_id }}">{{ face.person_name }}</a>
+        <div>
+            <a href="/person/{{ face.person_id }}">{{ face.person_name }}</a>
+        </div>
         {% endif %}
         <form class="label" action="/api/v1/label-one" method="post">
             <input type="hidden" name="face_id" value="{{ face.id }}" />
-            <label for="name">name</label>
+            <label for="name">Relabel Face</label>
             <input type="text" name="name" list="name-suggestions" />
             <input type="submit" value="submit" />
         </form>
         <form class="label" action="/api/v1/hide-face" method="post">
             <input type="hidden" name="face_id" value="{{ face.id }}" />
-            <input type="submit" value="hide" />
+            <input type="submit" value="Hide Face" />
         </form>
     </div>
 
     {% endfor %}
 </div>
+{% if hidden_faces %}
 <h2> Hidden Faces </h2>
 <div class="faces">
     {% for face in hidden_faces %}
     <div class="face">
-        <div>{{ face.src }}</div>
-        <div>Face {{ face.id }}</div>
-        <img src="/static/face/{{ face.src }}" />
+        <img src="/static/face/{{ face.src }}" title="Face {{ face.id }}, {{ face.src }}" />
         {% if face.person_id %}
         <a href="/person/{{ face.person_id }}">Person {{ face.person_id }}</a>
         {% endif %}
     </div>
     {% endfor %}
 </div>
+{% endif %}
 
 {% endblock %}

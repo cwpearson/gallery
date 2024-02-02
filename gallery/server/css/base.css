@@ -1,3 +1,10 @@
+/*remove the small gap between the viewport and the content*/
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
 .navigation {
     list-style-type: none;
     margin: 0;

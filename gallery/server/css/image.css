@@ -1,26 +1,39 @@
 .image-and-metadata {
+    border: 2px solid yellow;
     display: flex;
     flex-flow: row wrap;
+    justify-content: center;
 }
 
 .image {
     border: 2px solid red;
-    height: 70dvh;
-    width: 69dvw;
-    flex-grow: 0;
 
     img {
-        object-fit: contain;
-        height: 100%;
-        width: 100%;
+        border: 2px solid purple;
+
+        /* removes space below image?*/
+        display: block;
+
+        /* image can't he taller than 70% viewport
+        and can't be taller than parent*/
+        max-height: 70dvh;
+        max-width: 100%;
+
+        /* preserve aspect ratio with above constraints*/
+        height: auto;
     }
 }
 
 .metadata {
     border: 2px solid green;
-    width: 29dvw;
-}
+    min-width: 300px;
 
+    /* grow to fill flex space*/
+    flex: 1;
+
+    /* allow words to break*/
+    overflow-wrap: break-word;
+}
 
 .meta-pair {
     display: flex;
@@ -28,15 +41,20 @@
 }
 
 .meta-key {
-    border: 1px solid blue;
+    /* border: 1px solid blue; */
     font-style: italic;
     white-space: nowrap;
+    padding-right: 0.5rem;
 }
 
 .meta-val {
-    border: 1px solid red;
+    /* border: 1px solid red; */
     flex-grow: 1;
     word-break: break-all;
+}
+
+.monospace {
+    font-family: monospace;
 }
 
 .comment {
@@ -49,13 +67,14 @@
     flex-flow: row wrap;
 
     .face {
-        height: 200px;
+        max-height: 200px;
         border: 1px solid orange;
+        text-align: center;
 
         img {
             object-fit: contain;
-            height: 100px;
-            width: 100%;
+            max-height: 100px;
+            width: auto;
         }
     }
 }

@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 import face_recognition
 import numpy as np
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, HDBSCAN
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from PIL import Image as PilImage
@@ -423,13 +423,14 @@ def update_labels():
         X = np.array(embeddings)
 
         # eps = 0.44
-        eps = 0.39
+        eps = 0.38
         # min_samples = 3
         min_samples = 1
 
-        clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
+        # clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
+        clustering = HDBSCAN(min_cluster_size=2, metric="euclidean").fit(X)
         elapsed = time.time() - start
-        print(f"...{elapsed:.2f}s")
+        print(f"clustering took {elapsed:.2f}s")
 
         start = time.time()
         clusters = {}
@@ -441,9 +442,41 @@ def update_labels():
 
         for cluster_id, xis in clusters.items():
             if cluster_id == -1:
-                continue
+                # this "cluster" is noise, meaning the face couldn't be clustered at all
+                # treat each of these like their own cluster of 1
+                for xi in xis:
+                    face_id = face_ids[xi]
 
-            # print(f"processing cluster {cluster_id}")
+                    # check if this face is has is already in an automatically-assigned person by itself
+                    face = session.scalars(
+                        select(Face)
+                        .where(Face.id == face_id)
+                        .where(Face.person_source == PERSON_SOURCE_AUTOMATIC)
+                    ).one_or_none()
+                    if face:
+                        other_faces = session.scalars(
+                            select(Face)
+                            .where(Face.person_id == face.person_id)
+                            .where(Face.person_id != None)
+                            .where(Face.id != face_id)
+                        ).all()
+
+                        if (
+                            not other_faces
+                            and face.person_source == PERSON_SOURCE_AUTOMATIC
+                        ):
+                            # already its own one-face cluster
+                            continue
+                        else:
+                            anon_person_id = new_person("")
+                            print(
+                                f"created anonymous person={anon_person_id} for noise face"
+                            )
+
+                            set_face_person(
+                                face_id, anon_person_id, PERSON_SOURCE_AUTOMATIC
+                            )
+                continue
 
             cluster_manual_faces = []
             cluster_auto_faces = []
@@ -542,7 +575,7 @@ def update_labels():
                     )
 
         elapsed = time.time() - start
-        print(f"...{elapsed:.2f}s")
+        print(f"processing took {elapsed:.2f}s")
 
         remove_empty_people(session)
 
