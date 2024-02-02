@@ -38,13 +38,10 @@ def bp_label(request: Request):
     with Session(model.get_engine()) as session:
         faces = session.scalars(
             select(Face)
+            .join(Person, Face.person_id == Person.id)
+            .where(Face.person_source == model.PERSON_SOURCE_AUTOMATIC)
+            .where(or_(Person.name == "", Face.person_id == None))
             .where(Face.hidden == False)
-            .where(
-                or_(
-                    Face.person_id == None,
-                    Face.person_source == model.PERSON_SOURCE_AUTOMATIC,
-                )
-            )
             .offset(offset)
             .limit(limit)
         ).all()
