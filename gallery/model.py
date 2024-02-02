@@ -7,10 +7,11 @@ import datetime
 import shutil
 from typing import List
 import time
+import io
 
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import Text, Integer, DateTime, ForeignKey
+from sqlalchemy import Text, Integer, DateTime, ForeignKey, LargeBinary
 from sqlalchemy import create_engine
 from sqlalchemy import select
 
@@ -89,7 +90,7 @@ class Face(Base):
     person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), nullable=True)
     person_source: Mapped[int] = mapped_column(Integer, nullable=True)
     excluded_people: Mapped[str] = mapped_column(Text)
-    embedding_json: Mapped[str] = mapped_column(Text, nullable=True)
+    embedding_bytes: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
 
     person: Mapped["Person"] = relationship(back_populates="faces")  # Person.faces
     image: Mapped["Image"] = relationship(back_populates="faces")  # Image.faces
@@ -134,31 +135,19 @@ def new_person(name: str) -> int:
         return person.id
 
 
-def all_embeddings(include_hidden=False) -> list:
-    with Session(get_engine()) as session:
-        query = select(Face).where(Face.embedding_json != None)
-        if not include_hidden:
-            query = query.where(Face.hidden == 0)
-        faces = session.scalars(query).all()
+def all_embeddings(session: Session, include_hidden=False) -> list:
+    query = select(Face).where(Face.embedding_bytes != None)
+    if not include_hidden:
+        query = query.where(Face.hidden == 0)
+    faces = session.scalars(query).all()
 
-        return [json.loads(face.embedding_json) for face in faces], [
-            face.id for face in faces
-        ]
-
-
-def get_face_person(face_id: int):
-    """
-    return person_id, person_source for face_id
-    """
-    # print(f"get_face_person({face_id})")
-
-    with Session(get_engine()) as session:
-        face = session.scalars(select(Face).where(Face.id == face_id)).one()
-        return face.person_id, face.person_source
+    return [np.frombuffer(face.embedding_bytes) for face in faces], [
+        face.id for face in faces
+    ]
 
 
 def set_face_person(face_id: int, person_id: int, person_source: int):
-    print(f"set face {face_id} to person {person_id}")
+    print(f"model.set_face_person: set face {face_id} to person {person_id}")
     with Session(get_engine()) as session:
         face = session.scalars(select(Face).where(Face.id == face_id)).one()
 
@@ -375,7 +364,7 @@ def generate_embeddings():
 
     with Session(get_engine()) as session:
         faces = session.scalars(
-            select(Face).where(Face.embedding_json == None).where(Face.hidden == 0)
+            select(Face).where(Face.embedding_bytes == None).where(Face.hidden == 0)
         ).all()
 
         for face in faces:
@@ -391,12 +380,9 @@ def generate_embeddings():
                 original_img,
                 known_face_locations=[(face.top, face.right, face.bottom, face.left)],
             )[0]
-            # print(encoding)
 
-            data_str = json.dumps(encoding.tolist())
-
-            print(f"face {face.id}: update embedding {data_str[:20]}...")
-            face.embedding_json = data_str
+            face.embedding_bytes = encoding.tobytes()
+            print(f"face {face.id}: update embedding")
             session.commit()
 
 
@@ -429,117 +415,135 @@ def update_labels():
 
     init()
 
-    embeddings, face_ids = all_embeddings()
-    print(f"clustering {len(embeddings)} faces...")
-
-    X = np.array(embeddings)
-
-    # eps = 0.44
-    eps = 0.39
-    # min_samples = 3
-    min_samples = 1
-    start = time.time()
-    clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
-    elapsed = time.time() - start
-    print(f"...{elapsed:.2f}s")
-
-    start = time.time()
-    clusters = {}
-    for xi, cluster_id in enumerate(clustering.labels_):
-        clusters[cluster_id] = clusters.get(cluster_id, []) + [xi]
-    print(f"processing {len(clusters)} clusters...")
-
-    for cluster_id, xis in clusters.items():
-        if cluster_id == -1:
-            continue
-
-        # print(f"processing cluster {cluster_id}")
-
-        cluster_manual_faces = []
-        cluster_auto_faces = []
-        cluster_no_faces = []
-        for xi in xis:
-            person_id, reason = get_face_person(face_ids[xi])
-            if reason == PERSON_SOURCE_MANUAL:
-                cluster_manual_faces += [(xi, person_id)]
-            elif reason == PERSON_SOURCE_AUTOMATIC:
-                cluster_auto_faces += [(xi, person_id)]
-            else:
-                cluster_no_faces += [(xi, person_id)]
-
-        # print(cluster_manual_faces)
-
-        # label each not manually-labeled face in the cluster to the closest labeled face in the cluster
-        if cluster_manual_faces:
-            # prepare to query which labeled neighbor is closest
-            manual_X = X[[xi for xi, _ in cluster_manual_faces], :]
-            neigh = NearestNeighbors(n_neighbors=1, metric="euclidean").fit(manual_X)
-
-            for xi in xis:  # each face in the cluster
-                current_person_id, reason = get_face_person(face_ids[xi])
-                if reason != PERSON_SOURCE_MANUAL:
-                    tup = neigh.kneighbors([X[xi]])
-                    nearest_dist = tup[0][0][0]
-                    nearest_manual_i = tup[1][0][
-                        0
-                    ]  # ith entry in clluster_manual_faces
-                    nearest_label = cluster_manual_faces[nearest_manual_i][1]
-
-                    if nearest_dist <= eps:
-                        if current_person_id != nearest_label:
-                            print(
-                                f"update unlabeled or auto-labeled xi={xi} from {current_person_id} to {nearest_label}"
-                            )
-                            set_face_person(
-                                face_ids[xi],
-                                nearest_label,
-                                PERSON_SOURCE_AUTOMATIC,
-                            )
-                else:
-                    pass  # this face in this cluster was already labeled
-        elif cluster_auto_faces:
-            # FIXME: label each unlabeled face in the cluster with the closest auto-labeled face
-            # factor out code above and reuse here
-            for xi in xis:  # each face in the cluster
-                current_person_id, _ = get_face_person(face_ids[xi])
-                if current_person_id is None:
-                    min_dist_label = None
-                    min_dist = 100000000  # big number
-                    for labeled_xi, label in cluster_manual_faces:
-                        if labeled_xi != xi:
-                            dist = face_recognition.face_distance(
-                                [np.array(embeddings[labeled_xi])],
-                                np.array(embeddings[xi]),
-                            )[0]
-                            # print(f"dist with {xi} is {dist}")
-                            if dist < min_dist and dist < eps:
-                                min_dist_label = label
-                                min_dist = dist
-
-                    if min_dist_label:  # if a near-enough label was detected
-                        print(f"set unlabeled face xi={xi} to person {min_dist_label}")
-                        set_face_person(
-                            face_ids[xi],
-                            min_dist_label,
-                            PERSON_SOURCE_AUTOMATIC,
-                        )
-        else:
-            # print(f"no labeled faces in cluster {cluster_id}")
-
-            # create a new anonymous person
-            anon_person_id = new_person("")
-            print(
-                f"created anonymous person={anon_person_id} for unlabeled face cluster"
-            )
-
-            # label all faces in the cluster as that person
-            for xi in xis:
-                set_face_person(face_ids[xi], anon_person_id, PERSON_SOURCE_AUTOMATIC)
-
-    elapsed = time.time() - start
-    print(f"...{elapsed:.2f}s")
-
     with Session(get_engine()) as session:
+        embeddings, face_ids = all_embeddings(session)
+        print(f"clustering {len(embeddings)} faces...")
+
+        start = time.time()
+        X = np.array(embeddings)
+
+        # eps = 0.44
+        eps = 0.39
+        # min_samples = 3
+        min_samples = 1
+
+        clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
+        elapsed = time.time() - start
+        print(f"...{elapsed:.2f}s")
+
+        start = time.time()
+        clusters = {}
+        for xi, cluster_id in enumerate(clustering.labels_):
+            if cluster_id not in clusters:
+                clusters[cluster_id] = []
+            clusters[cluster_id].append(xi)
+        print(f"processing {len(clusters)} clusters...")
+
+        for cluster_id, xis in clusters.items():
+            if cluster_id == -1:
+                continue
+
+            # print(f"processing cluster {cluster_id}")
+
+            cluster_manual_faces = []
+            cluster_auto_faces = []
+            cluster_no_faces = []
+            cluster_nomanual_faces = []
+            for xi in xis:
+                face = session.scalars(
+                    select(Face).where(Face.id == face_ids[xi])
+                ).one()
+                person_id, person_source = face.person_id, face.person_source
+                if person_source == PERSON_SOURCE_MANUAL:
+                    cluster_manual_faces.append((xi, person_id))
+                elif person_source == PERSON_SOURCE_AUTOMATIC:
+                    cluster_auto_faces.append((xi, person_id))
+                    cluster_nomanual_faces.append((xi, person_id))
+                else:
+                    cluster_no_faces.append((xi, person_id))
+                    cluster_nomanual_faces.append((xi, person_id))
+
+            # print(cluster_manual_faces)
+
+            # label each not manually-labeled face in the cluster to the closest labeled face in the cluster
+            if cluster_manual_faces:
+                if cluster_nomanual_faces:
+                    # prepare to query which manually labeled neighbor is closest
+                    manual_X = X[[xi for xi, _ in cluster_manual_faces], :]
+                    neigh = NearestNeighbors(n_neighbors=1, metric="euclidean").fit(
+                        manual_X
+                    )
+
+                    # relabel all non-manual faces
+                    tup = neigh.kneighbors(
+                        X[[xi for xi, _ in cluster_nomanual_faces], :]
+                    )
+                    dists = tup[0]
+                    nears = tup[1]
+
+                    for dist, near, (face_xi, current_person_id) in zip(
+                        dists, nears, cluster_nomanual_faces
+                    ):
+                        nearest_person = cluster_manual_faces[near[0]][1]
+                        nearest_dist = dist[0]
+
+                        if nearest_dist <= eps:
+                            if current_person_id != nearest_person:
+                                print(
+                                    f"update unlabeled or auto-labeled from {current_person_id} to {nearest_person}"
+                                )
+                                set_face_person(
+                                    face_ids[face_xi],
+                                    nearest_person,
+                                    PERSON_SOURCE_AUTOMATIC,
+                                )
+            elif cluster_auto_faces:
+                if cluster_no_faces:
+                    # prepare to query which automatically labeled neighbor is closest
+                    auto_X = X[[xi for xi, _ in cluster_auto_faces], :]
+                    neigh = NearestNeighbors(n_neighbors=1, metric="euclidean").fit(
+                        auto_X
+                    )
+
+                    # get label for all unlabeled
+                    tup = neigh.kneighbors(X[[xi for xi, _ in cluster_no_faces], :])
+                    dists = tup[0]
+                    nears = tup[1]
+
+                    for dist, near, (face_xi, current_person_id) in zip(
+                        dists, nears, cluster_no_faces
+                    ):
+                        nearest_person = cluster_auto_faces[near[0]][1]
+                        nearest_dist = dist[0]
+
+                        if nearest_dist <= eps:
+                            if current_person_id != nearest_person:
+                                print(
+                                    f"update unlabeled xi={xi} from {current_person_id} to {nearest_person}"
+                                )
+                                set_face_person(
+                                    face_ids[face_xi],
+                                    nearest_person,
+                                    PERSON_SOURCE_AUTOMATIC,
+                                )
+            else:
+                # print(f"no labeled faces in cluster {cluster_id}")
+
+                # create a new anonymous person
+                anon_person_id = new_person("")
+                print(
+                    f"created anonymous person={anon_person_id} for unlabeled face cluster"
+                )
+
+                # label all faces in the cluster as that person
+                for xi in xis:
+                    set_face_person(
+                        face_ids[xi], anon_person_id, PERSON_SOURCE_AUTOMATIC
+                    )
+
+        elapsed = time.time() - start
+        print(f"...{elapsed:.2f}s")
+
         remove_empty_people(session)
 
 

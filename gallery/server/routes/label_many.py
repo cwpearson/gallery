@@ -26,7 +26,7 @@ bp = Blueprint("label-many")
 def bp_label_one(request: Request):
     print("at /api/v1/label-many")
 
-    print(request.form.items())
+    # print(request.form.items())
 
     with Session(model.get_engine()) as session:
         for k in request.form.keys():
@@ -34,7 +34,7 @@ def bp_label_one(request: Request):
             sep = k.find("-")
             face_id = int(k[:sep])
             field = k[sep + 1 :]
-            print(face_id, field, v)
+            # print(face_id, field, v)
 
             if field == "name" and v:
                 person = session.scalars(
@@ -44,6 +44,7 @@ def bp_label_one(request: Request):
                     person = Person(name=v)
                     session.add(person)
                     session.commit()
+                    print(f"create new person {person.id} {person.name}")
                 face = session.scalars(select(Face).where(Face.id == face_id)).one()
                 face.person_id = person.id
                 face.person_source = model.PERSON_SOURCE_MANUAL
