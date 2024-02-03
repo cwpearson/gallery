@@ -307,7 +307,7 @@ def detect_face(image_id):
 
                 print(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
                 face_is_small = (
-                    face_height / image.height < 0.03 or face_width / image.width < 0.03
+                    face_height / image.height < 0.04 or face_width / image.width < 0.04
                 )
                 hidden = False
                 hidden_reason = None
@@ -321,7 +321,10 @@ def detect_face(image_id):
                 pil_image = PilImage.open(image_path)
                 cropped = pil_image.crop((x1, y1, x2, y2))
                 cropped_sha = utils.hash_image_data(cropped)
-                output_name = Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}.png"
+                output_ext = utils.extension_for(cropped)
+                output_name = (
+                    Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}.{output_ext}"
+                )
                 output_path = CACHE_DIR / "faces" / output_name
                 output_path.parent.mkdir(exist_ok=True, parents=True)
                 print(output_path)
@@ -355,9 +358,6 @@ def detect_faces():
         for image in images:
             detect_face(image.id)
 
-        # with multiprocessing.Pool(CPUS) as p:
-        #     p.starmap(detect_face, [(image.id,) for image in images])
-
 
 def generate_embeddings():
     init()
@@ -382,7 +382,7 @@ def generate_embeddings():
             )[0]
 
             face.embedding_bytes = encoding.tobytes()
-            print(f"face {face.id}: update embedding")
+            print(f"face {face.id}: store embedding")
             session.commit()
 
 

@@ -16,17 +16,17 @@
 <div class="tiles">
     {% for person in people %}
     <div class="tile">
-        <div class="image">
-            <a href="/person/{{ person.id }}">
+        <a href="/person/{{ person.id }}">
+            <div class="image">
                 <img src="/static/face/{{ person.thumb_src }}" />
-            </a>
-        </div>
-        <div class="name">
-            {{ person.name }}
-        </div>
-        <div class="count">
-            ({{ person.count }} images)
-        </div>
+            </div>
+            <div class="name">
+                {{ person.name }}
+            </div>
+            <div class="count">
+                ({{ person.count }} images)
+            </div>
+        </a>
     </div>
     {% endfor %}
 </div>

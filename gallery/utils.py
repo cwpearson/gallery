@@ -3,6 +3,8 @@ import hashlib
 
 from gallery import model
 
+from PIL import Image as PilImage
+
 
 def hash_image_data(img) -> str:
     pixel_data = [x for xs in list(img.getdata()) for x in xs]
@@ -52,3 +54,12 @@ def input_person_name(conn: sqlite3.Connection, prompt: str) -> int:
                 return model.new_person(r_name)
             else:
                 return people_ids[resp - 1]
+
+
+def extension_for(img: PilImage) -> str:
+    if img.format == "JPEG":
+        return "jpg"
+    elif img.format == "PNG":
+        return "png"
+    else:
+        raise RuntimeError(f"unexpected format {img.format}")
