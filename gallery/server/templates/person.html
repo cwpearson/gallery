@@ -14,7 +14,7 @@
 </datalist>
 
 <form class="rename" action="/api/v1/name-person" method="post">
-    <label for="name">Rename</label>
+    <label for="name">Rename Person</label>
     <input type="hidden" name="id" value="{{ person_id }}" />
     <input type="text" name="name" list="name-suggestions" />
     <input type="submit" value="Submit" />
@@ -35,13 +35,13 @@
             </div>
             <form class="label" action="/api/v1/label-one" method="post">
                 <input type="hidden" name="face_id" value="{{ face.id }}" />
-                <label for="name">name</label>
+                <label for="name">Relabel Face</label>
                 <input type="text" name="name" list="name-suggestions" />
                 <input type="submit" value="submit" />
             </form>
-            <form class="label" action="/api/v1/hide-face" method="post">
+            <form class="hide" action="/api/v1/hide-face" method="post">
                 <input type="hidden" name="face_id" value="{{ face.id }}" />
-                <input type="submit" value="hide" />
+                <input type="submit" value="Hide Face" />
             </form>
             {% endfor %}
         </div>

@@ -3,24 +3,40 @@
     flex-flow: row wrap;
 
     .tile {
-        border: 2px solid orange;
+        /* border: 2px solid orange; */
         text-align: center;
-        padding: 1rem;
-
+        margin: 1rem;
+        background-color: #cbc4c4;
 
         .image {
             /* border: 2px solid green; */
-            /* max-width: 200px;
-            max-height: 200px; */
             margin-bottom: 0.5rem;
 
             img {
                 /* remove space below image*/
-                display: block;
+                /* treat as text so its centered*/
+                display: inline-block;
                 object-fit: contain;
                 width: 200px;
                 height: 200px;
             }
+        }
+
+        a {
+            text-decoration: none;
+            color: black;
+        }
+
+        form.rename {
+            display: flex;
+            flex-flow: row;
+            max-width: 200px;
+
+        }
+
+        input[type=text] {
+            /* allow to shrink below default size */
+            min-width: 0;
         }
     }
 }
