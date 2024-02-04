@@ -321,9 +321,9 @@ def detect_face(image_id):
                 pil_image = PilImage.open(image_path)
                 cropped = pil_image.crop((x1, y1, x2, y2))
                 cropped_sha = utils.hash_image_data(cropped)
-                output_ext = utils.extension_for(cropped)
+                output_ext = "".join(image_path.suffixes)
                 output_name = (
-                    Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}.{output_ext}"
+                    Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}{output_ext}"
                 )
                 output_path = CACHE_DIR / "faces" / output_name
                 output_path.parent.mkdir(exist_ok=True, parents=True)
