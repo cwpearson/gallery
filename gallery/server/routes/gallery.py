@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
 from gallery import model
-from gallery import cli_add_original
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 

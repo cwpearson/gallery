@@ -27,7 +27,7 @@ def bp_image(request: Request):
         # delete the image
         print(f"delete Image {image_id}")
         image = session.scalars(select(Image).where(Image.id == image_id)).one()
-        files_to_remove += [model.ORIGINALS_DIR / image.file_name]
+        files_to_remove += [model.IMAGES_DIR / image.file_name]
         for face in image.faces:
             files_to_remove += [model.FACES_DIR / face.extracted_path]
         session.delete(image)

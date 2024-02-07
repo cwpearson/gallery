@@ -1,17 +1,26 @@
-import sys
 import multiprocessing
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
+import click
+
 from gallery import model
+from gallery import config
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option("--cache-dir", help="Gallery cache directory")
+@click.argument("paths", nargs=-1)
+def add_images(paths, cache_dir: str = None):
+
+    if cache_dir:
+        config.update(cache_dir=cache_dir)
+
     model.init()
 
     with multiprocessing.Pool(model.CPUS) as p:
-        p.map(model.add_original, sys.argv[1:])
+        p.map(model.add_original, paths)
 
     model.incremental_index()
 
@@ -23,3 +32,7 @@ if __name__ == "__main__":
     model.generate_embeddings()
 
     model.update_labels()
+
+
+if __name__ == "__main__":
+    add_images()

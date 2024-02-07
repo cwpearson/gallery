@@ -2,7 +2,7 @@ import sqlite3
 import sys
 
 from gallery import model
-from gallery.cli_add_original import update_labels
+from gallery.model import update_labels
 
 if __name__ == "__main__":
     model.init()
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     ).fetchone()
     file_path, original_name = image_row
 
-    file_path = model.ORIGINALS_DIR / file_path
+    file_path = model.IMAGES_DIR / file_path
     face_path = model.FACES_DIR / extracted_path
 
     file_path = file_path.resolve()

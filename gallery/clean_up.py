@@ -31,7 +31,7 @@ def add_original_image_sizes(conn: sqlite3.Connection):
         original_id, file_name = original_row[0]
         print(f"set size for original {original_id}")
 
-        with open(model.ORIGINALS_DIR / file_name, "rb") as f:
+        with open(model.IMAGES_DIR / file_name, "rb") as f:
             img = Image.open(f)
             width, height = img.size
 

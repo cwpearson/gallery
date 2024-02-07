@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
         for image_id in image_ids:
             original = model.get_original(conn, image_id)
-            path = (model.ORIGINALS_DIR / original[1]).resolve()
+            path = (model.IMAGES_DIR / original[1]).resolve()
             print(f"\t{path} ({image_id})")
 
     conn.close()

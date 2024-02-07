@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from sanic import Sanic
-from sanic.response import html, text
 
 
 from gallery.server.routes import (
@@ -14,6 +13,7 @@ from gallery.server.routes import (
     label_one,
     label_many,
     label,
+    logs,
     name_person,
     new_people,
     people,
@@ -22,13 +22,20 @@ from gallery.server.routes import (
     upload,
 )
 from gallery import model
+from gallery import config
 
 
 model.init()
 
-app = Sanic("Gallery")
+app = Sanic("Gallery", env_prefix="GALLERY_")
+
+if hasattr(app.config, "ORIGINALS_DIR"):
+    config.update(originals_dir=app.config.ORIGINALS_DIR)
+if hasattr(app.config, "CACHE_DIR"):
+    config.update(cache_dir=app.config.CACHE_DIR)
+
 app.static("/static/css/", Path(__file__).parent / "css", name="css")
-app.static("/static/image/", model.ORIGINALS_DIR, name="images")
+app.static("/static/image/", model.IMAGES_DIR, name="images")
 app.static("/static/face/", model.FACES_DIR, name="faces")
 app.blueprint(root.bp)
 app.blueprint(gallery.bp)
@@ -36,6 +43,7 @@ app.blueprint(upload.bp)
 app.blueprint(label_one.bp)
 app.blueprint(label_many.bp)
 app.blueprint(label.bp)
+app.blueprint(logs.bp)
 app.blueprint(name_person.bp)
 app.blueprint(new_people.bp)
 app.blueprint(people.bp)

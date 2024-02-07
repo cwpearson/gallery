@@ -7,7 +7,6 @@ import datetime
 import shutil
 from typing import List
 import time
-import io
 
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
@@ -17,18 +16,18 @@ from sqlalchemy import select
 
 import face_recognition
 import numpy as np
-from sklearn.cluster import DBSCAN, HDBSCAN
+from sklearn.cluster import HDBSCAN
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from PIL import Image as PilImage
 
-from gallery import utils
-
 from whoosh.index import create_in, open_dir
 import whoosh.fields
-from whoosh.writing import AsyncWriter
 import whoosh
 from whoosh.qparser import QueryParser
+
+from gallery import utils
+from gallery import config as cfg
 
 PERSON_SOURCE_MANUAL = 1
 PERSON_SOURCE_AUTOMATIC = 2
@@ -38,12 +37,11 @@ HIDDEN_REASON_MANUAL = 2
 
 CPUS = max(multiprocessing.cpu_count() - 1, 1)
 
-CACHE_DIR = Path(__file__).parent / ".." / ".gallery"
-
-ORIGINALS_DIR = CACHE_DIR / "originals"
-FACES_DIR = CACHE_DIR / "faces"
-DB_PATH = CACHE_DIR / "gallery.db"
-WHOOSH_DIR = CACHE_DIR / "whoosh"
+IMAGES_DIR = cfg.CACHE_DIR / "images"
+FACES_DIR = cfg.CACHE_DIR / "faces"
+DB_PATH = cfg.CACHE_DIR / "gallery.db"
+DB_LOG_PATH = cfg.CACHE_DIR / "logs.db"
+WHOOSH_DIR = cfg.CACHE_DIR / "whoosh"
 
 WHOOSH_SCHEMA = whoosh.fields.Schema(
     id=whoosh.fields.NUMERIC(stored=True),
@@ -106,6 +104,18 @@ class Person(Base):
     )
 
 
+class LogBase(DeclarativeBase):
+    pass
+
+
+class Log(LogBase):
+    __tablename__ = "log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    unix: Mapped[int] = mapped_column(Integer)
+    component: Mapped[str] = mapped_column(Text, nullable=True)
+    message: Mapped[str] = mapped_column(Text)
+
+
 ENGINE = None
 
 
@@ -119,12 +129,49 @@ def get_engine():
     return ENGINE
 
 
+LOG_ENGINE = None
+
+
+def get_log_engine():
+    global LOG_ENGINE
+    if LOG_ENGINE is None:
+        DB_LOG_PATH.parent.mkdir(exist_ok=True, parents=True)
+        engine_path = f"sqlite:///{DB_LOG_PATH.resolve()}"
+        print(f"open {engine_path}")
+        LOG_ENGINE = create_engine(engine_path, echo=False)
+    return LOG_ENGINE
+
+
 def init():
     # sqlite database
     engine = get_engine()
     Base.metadata.create_all(engine)
 
+    log_engine = get_log_engine()
+    LogBase.metadata.create_all(log_engine)
+
     # woosh database is lazily created
+
+
+def log(message: str, component: str = None):
+
+    epoch_us = int(time.time() * 1000000)
+
+    if component:
+        print(f"==== [{component}] {epoch_us} {message}")
+    else:
+        print(f"==== {epoch_us} {message}")
+
+    if not isinstance(message, str):
+        message = f"{message}"
+
+    try:
+        record = Log(unix=epoch_us, message=message, component=component)
+        with Session(get_log_engine()) as session:
+            session.add(record)
+            session.commit()
+    except Exception as e:
+        print(f"error storing log message: {e}")
 
 
 def new_person(name: str) -> int:
@@ -147,7 +194,7 @@ def all_embeddings(session: Session, include_hidden=False) -> list:
 
 
 def set_face_person(face_id: int, person_id: int, person_source: int):
-    print(f"model.set_face_person: set face {face_id} to person {person_id}")
+    log(f"model.set_face_person: set face {face_id} to person {person_id}")
     with Session(get_engine()) as session:
         face = session.scalars(select(Face).where(Face.id == face_id)).one()
 
@@ -186,7 +233,6 @@ def face_add_excluded_person(conn: sqlite3.Connection, face_id: int, person_id: 
         excluded_people = []
     excluded_people += [person_id]
     excluded_people = list(set(excluded_people))  # uniqify
-    print(excluded_people)
 
     face_row = cursor.execute(
         "UPDATE faces SET excluded_people = ? WHERE id = ?",
@@ -270,7 +316,7 @@ def get_originals_for_person(conn: sqlite3.Connection, person_id: int) -> list:
 
 
 def set_face_hidden(face_id, hidden: bool, hidden_reason: int):
-    print(f"set face {face_id} hidden={hidden} hidden_reason={hidden_reason}")
+    log(f"set face {face_id} hidden={hidden} hidden_reason={hidden_reason}")
     with Session(get_engine()) as session:
         face = session.scalars(select(Face).where(Face.id == face_id)).one()
         face.hidden = hidden
@@ -298,21 +344,21 @@ def detect_face(image_id):
 
         if not faces:
             image = session.get(Image, image_id)
-            image_path = ORIGINALS_DIR / image.file_name
+            image_path = IMAGES_DIR / image.file_name
             fr_image = face_recognition.load_image_file(image_path)
             locations = face_recognition.face_locations(fr_image)
             for y1, x2, y2, x1 in locations:  # [(t, r, b, l)]
                 face_height = y2 - y1
                 face_width = x2 - x1
 
-                print(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
+                log(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
                 face_is_small = (
                     face_height / image.height < 0.04 or face_width / image.width < 0.04
                 )
                 hidden = False
                 hidden_reason = None
                 if face_is_small:
-                    print(
+                    log(
                         f"image {image_id}: face at {(x1, y1, x2, y2)} will be hidden (too small)"
                     )
                     hidden = True
@@ -325,9 +371,9 @@ def detect_face(image_id):
                 output_name = (
                     Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}{output_ext}"
                 )
-                output_path = CACHE_DIR / "faces" / output_name
+                output_path = FACES_DIR / output_name
                 output_path.parent.mkdir(exist_ok=True, parents=True)
-                print(output_path)
+                log(output_path)
                 cropped.save(output_path)
 
                 session.add(
@@ -346,7 +392,7 @@ def detect_face(image_id):
             session.commit()
 
         else:
-            print(f"already detected faces for {image_id}")
+            log(f"already detected faces for {image_id}")
 
 
 def detect_faces():
@@ -374,7 +420,7 @@ def generate_embeddings():
             ).one()
 
             original_img = face_recognition.load_image_file(
-                ORIGINALS_DIR / image.file_name
+                IMAGES_DIR / image.file_name
             )
             encoding = face_recognition.face_encodings(
                 original_img,
@@ -382,7 +428,7 @@ def generate_embeddings():
             )[0]
 
             face.embedding_bytes = encoding.tobytes()
-            print(f"face {face.id}: store embedding")
+            log(f"face {face.id}: store embedding")
             session.commit()
 
 
@@ -398,7 +444,7 @@ def remove_empty_people(session: Session):
             select(Face).where(Face.person_id == person.id).where(Face.hidden == 0)
         ).all()
         if not faces:
-            print(f"delete unreferenced person {person.id}")
+            log(f"delete unreferenced person {person.id}")
             session.delete(person)
 
     session.commit()
@@ -417,7 +463,7 @@ def update_labels():
 
     with Session(get_engine()) as session:
         embeddings, face_ids = all_embeddings(session)
-        print(f"clustering {len(embeddings)} faces...")
+        log(f"clustering {len(embeddings)} faces...")
 
         start = time.time()
         X = np.array(embeddings)
@@ -430,7 +476,7 @@ def update_labels():
         # clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(X)
         clustering = HDBSCAN(min_cluster_size=2, metric="euclidean").fit(X)
         elapsed = time.time() - start
-        print(f"clustering took {elapsed:.2f}s")
+        log(f"clustering took {elapsed:.2f}s")
 
         start = time.time()
         clusters = {}
@@ -438,7 +484,7 @@ def update_labels():
             if cluster_id not in clusters:
                 clusters[cluster_id] = []
             clusters[cluster_id].append(xi)
-        print(f"processing {len(clusters)} clusters...")
+        log(f"processing {len(clusters)} clusters...")
 
         for cluster_id, xis in clusters.items():
             if cluster_id == -1:
@@ -469,7 +515,7 @@ def update_labels():
                             continue
                         else:
                             anon_person_id = new_person("")
-                            print(
+                            log(
                                 f"created anonymous person={anon_person_id} for noise face"
                             )
 
@@ -522,7 +568,7 @@ def update_labels():
 
                         if nearest_dist <= eps:
                             if current_person_id != nearest_person:
-                                print(
+                                log(
                                     f"update unlabeled or auto-labeled from {current_person_id} to {nearest_person}"
                                 )
                                 set_face_person(
@@ -564,7 +610,7 @@ def update_labels():
 
                 # create a new anonymous person
                 anon_person_id = new_person("")
-                print(
+                log(
                     f"created anonymous person={anon_person_id} for unlabeled face cluster"
                 )
 
@@ -575,7 +621,7 @@ def update_labels():
                     )
 
         elapsed = time.time() - start
-        print(f"processing took {elapsed:.2f}s")
+        log(f"processing took {elapsed:.2f}s")
 
         remove_empty_people(session)
 
@@ -594,7 +640,7 @@ def add_original(image_path) -> int:
 
         existing = session.scalars(stmt).one_or_none()
         if existing is not None:
-            print(f"{image_path} file already present as image {existing.id}")
+            log(f"{image_path} file already present as image {existing.id}")
             return existing.id
 
     # check if the pixel values are identical to an image we already have
@@ -609,14 +655,14 @@ def add_original(image_path) -> int:
 
         existing = session.scalars(stmt).one_or_none()
         if existing is not None:
-            print(f"{image_path} image data already present as image {existing.id}")
+            log(f"{image_path} image data already present as image {existing.id}")
             return existing.id
         else:
-            # copy file to ORIGINALS_DIR
+            # copy file to IMAGES_DIR
             dst_name = Path(f"{img_hash[0:2]}") / f"{img_hash[0:8]}{image_path.suffix}"
-            dst_path = ORIGINALS_DIR / dst_name
+            dst_path = IMAGES_DIR / dst_name
             dst_path.parent.mkdir(exist_ok=True, parents=True)
-            print(f"{image_path} -> {dst_path}")
+            log(f"{image_path} -> {dst_path}")
             shutil.copyfile(image_path, dst_path)
 
             width, height = pil_img.size
@@ -646,7 +692,7 @@ def incremental_index():
     # whoosh database
     WHOOSH_DIR.mkdir(exist_ok=True, parents=True)
     if not whoosh.index.exists_in(WHOOSH_DIR):
-        print(f"creating whoosh index in {WHOOSH_DIR}")
+        log(f"creating whoosh index in {WHOOSH_DIR}")
         create_in(WHOOSH_DIR, WHOOSH_SCHEMA)
 
     ix = open_dir(WHOOSH_DIR)
@@ -662,9 +708,9 @@ def incremental_index():
                 results = s.search(q)
                 # Check if any results are found
                 if results:
-                    print(f"Image {image.id} already indexed")
+                    log(f"Image {image.id} already indexed")
                 else:
-                    print(f"add document id={image.id}")
+                    log(f"add document id={image.id}")
                     writer.add_document(
                         id=image.id,
                         comment=image.comment,
@@ -703,7 +749,7 @@ def merge_people(session: Session, a: Person, b: Person) -> None:
     merge b into a
     """
 
-    print(f"model.merge_people: merge {b.id} -> {a.id}")
+    log(f"model.merge_people: merge {b.id} -> {a.id}")
 
     # replace all Face.person == b with a
     b_faces = session.scalars(select(Face).where(Face.person == b))
@@ -711,7 +757,7 @@ def merge_people(session: Session, a: Person, b: Person) -> None:
         face.person = a
 
     # delete b
-    print(f"model.merge_people: delete person {b.id}")
+    log(f"model.merge_people: delete person {b.id}")
     session.delete(b)
     session.commit()
 

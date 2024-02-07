@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from gallery import model
-from gallery import cli_add_original
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
@@ -45,7 +44,7 @@ def bp_upload_files(request: Request):
                 uploaded_path = Path(d) / file.name
                 with open(uploaded_path, "wb") as f:
                     f.write(file.body)
-                cli_add_original.add_original(uploaded_path)
+                model.add_original(uploaded_path)
 
     model.incremental_index()
     model.detect_faces()

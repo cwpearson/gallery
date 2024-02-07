@@ -11,7 +11,6 @@ from sqlalchemy import select
 
 from gallery import model
 from gallery.model import Face, Person
-from gallery import cli_add_original
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 

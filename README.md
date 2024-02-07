@@ -3,7 +3,7 @@
 ## Example
 
 ```bash
-python -m gallery.cli_add_original example_originals/*
+python -m gallery.cli_add_images example_originals/*
 python -m sanic gallery.server:app --debug
 ```
 
@@ -11,7 +11,7 @@ Then navigate to http://localhost:8000 in your browser.
 
 ## Add Images
 ```
-python -m gallery.cli_add_original /path/to/images/*
+python -m gallery.cli_add_images /path/to/images/*
 ```
 
 ## Launch Gallery
