@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" href="/gallery/server/css/settings.css">
+{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<form action="/api/v1/rescan-originals" method="post">
+    <input type="submit" value="Rescan Originals" />
+    <label for="complete">Complete Rescan</label>
+    <input type="checkbox" name="complete" value="off" />
+</form>
+
+<div>
+    Cache Directory: {{ cache_dir }}
+</div>
+
+{% if originals_dir %}
+<div>
+    Originals Directory: {{ originals_dir }}
+</div>
+{% endif %}
+
+{% endblock %}
