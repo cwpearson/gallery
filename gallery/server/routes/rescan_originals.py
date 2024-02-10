@@ -17,14 +17,16 @@ bp = Blueprint("rescan-originals")
 
 
 async def rescan_originals_task(app, complete: bool = False):
-    with Session(model.get_engine()) as session:
 
+    try:
         IMAGE_SUFFIXES = [".jpg", ".png", ".webp", ".jpeg"]
 
         for e in config.ORIGINALS_DIR.rglob("*"):
             if e.is_file():
                 if e.suffix in IMAGE_SUFFIXES:
                     model.add_original(e)
+    except KeyboardInterrupt:
+        return
 
 
 @bp.post("/api/v1/rescan-originals")
@@ -39,7 +41,9 @@ def rescan_originals(request: Request):
         return redirect(request.headers.get("Referer"))
 
     model.log("starting async originals scan...")
-    request.app.add_task(rescan_originals_task(request.app, complete))
+    request.app.add_task(
+        rescan_originals_task(request.app, complete), name="rescan_originals"
+    )
 
     # redirect back where we sumbitted the post from
     referer = request.headers.get("Referer")

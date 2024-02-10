@@ -23,6 +23,7 @@ Browse to http://localhost:8000
 ## Roadmap
 
 
+- [ ] `images` table needs a face_detection_complete column, since lack of detected faces doesn't mean we didn't try to detect them
 - [x] How to fix that the path includes things like `/gallery/server` because that's the python package name
 - [x] Track time original was added
 - [x] Upload images from GUI

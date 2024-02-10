@@ -7,6 +7,7 @@ import datetime
 import shutil
 from typing import List
 import time
+from io import BytesIO
 
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
@@ -19,6 +20,7 @@ import numpy as np
 from sklearn.cluster import HDBSCAN
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
+import numpy.typing as npt
 from PIL import Image as PilImage
 
 from whoosh.index import create_in, open_dir
@@ -61,7 +63,8 @@ class Image(Base):
     height: Mapped[int] = mapped_column(Integer)
     width: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(Text, nullable=True)
-    archived: Mapped[int] = mapped_column(Integer, default=0)
+    face_detection_complete: Mapped[bool] = mapped_column(Integer, default=False)
+    archived: Mapped[bool] = mapped_column(Integer, default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )  # time in UTC
@@ -338,58 +341,93 @@ def get_faces_for_original(
     return rows
 
 
-def detect_face(image_id):
-    with Session(get_engine()) as session:
-        faces = session.scalars(select(Face).where(Face.image_id == image_id)).all()
+def detect_face_from_loaded(
+    session: Session, image: Image, pil_img: PilImage
+) -> npt.NDArray | None:
+    """
+    data should be the contents of the image file
+    Image should be the database entry
 
-        if not faces:
+    returns what face_recognition.load_image_file would have produced for the corresponding image file,
+    or None if faces have already been detected
+    """
+
+    # already finished if faces are already detected
+    if image.face_detection_complete:
+        log(f"already detected faces for {image.id}")
+        return None
+
+    image_path = IMAGES_DIR / image.file_name
+
+    # face_recognition.load_image_file is just
+    # https://github.com/ageitgey/face_recognition/blob/2e2dccea9dd0ce730c8d464d0f67c6eebb40c9d1/face_recognition/api.py#L78-L89
+    # im = PIL.Image.open(file)
+    # if mode:
+    #     im = im.convert(mode)
+    # return np.array(im)
+    fr_img = np.array(pil_img.convert("RGB"))
+
+    locations = face_recognition.face_locations(fr_img)
+    for y1, x2, y2, x1 in locations:  # [(t, r, b, l)]
+        face_height = y2 - y1
+        face_width = x2 - x1
+
+        log(f"image {image.id}: new face at {(x1, y1, x2, y2)}")
+        face_is_small = (
+            face_height / pil_img.height < 0.04 or face_width / image.width < 0.04
+        )
+        hidden = False
+        hidden_reason = None
+        if face_is_small:
+            log(
+                f"image {image.id}: face at {(x1, y1, x2, y2)} will be hidden (too small)"
+            )
+            hidden = True
+            hidden_reason = HIDDEN_REASON_SMALL
+
+        cropped = pil_img.crop((x1, y1, x2, y2))
+        cropped_sha = utils.hash_image_data(cropped)
+        output_ext = "".join(image_path.suffixes)
+        output_name = Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}{output_ext}"
+        output_path = FACES_DIR / output_name
+        output_path.parent.mkdir(exist_ok=True, parents=True)
+        log(output_path)
+        cropped.save(output_path)
+
+        session.add(
+            Face(
+                image_id=image.id,
+                top=y1,
+                right=x2,
+                bottom=y2,
+                left=x1,
+                hidden=hidden,
+                hidden_reason=hidden_reason,
+                extracted_path=str(output_name),
+                excluded_people=json.dumps([]),
+            )
+        )
+    image.face_detection_complete = True
+    session.commit()
+
+    return fr_img
+
+
+def detect_face(image_id: int):
+
+    with Session(get_engine()) as session:
+
+        image = session.get(Image, image_id)
+
+        if not image.face_detection_complete:
             image = session.get(Image, image_id)
             image_path = IMAGES_DIR / image.file_name
-            fr_image = face_recognition.load_image_file(image_path)
-            locations = face_recognition.face_locations(fr_image)
-            for y1, x2, y2, x1 in locations:  # [(t, r, b, l)]
-                face_height = y2 - y1
-                face_width = x2 - x1
 
-                log(f"image {image_id} : found face at {(x1, y1, x2, y2)}")
-                face_is_small = (
-                    face_height / image.height < 0.04 or face_width / image.width < 0.04
-                )
-                hidden = False
-                hidden_reason = None
-                if face_is_small:
-                    log(
-                        f"image {image_id}: face at {(x1, y1, x2, y2)} will be hidden (too small)"
-                    )
-                    hidden = True
-                    hidden_reason = HIDDEN_REASON_SMALL
+            with open(image_path, "rb") as f:
+                pil_img = PilImage.open(f)
+                pil_img.load()
 
-                pil_image = PilImage.open(image_path)
-                cropped = pil_image.crop((x1, y1, x2, y2))
-                cropped_sha = utils.hash_image_data(cropped)
-                output_ext = "".join(image_path.suffixes)
-                output_name = (
-                    Path(f"{cropped_sha[0:2]}") / f"{cropped_sha[0:8]}{output_ext}"
-                )
-                output_path = FACES_DIR / output_name
-                output_path.parent.mkdir(exist_ok=True, parents=True)
-                log(output_path)
-                cropped.save(output_path)
-
-                session.add(
-                    Face(
-                        image_id=image_id,
-                        top=y1,
-                        right=x2,
-                        bottom=y2,
-                        left=x1,
-                        hidden=hidden,
-                        hidden_reason=hidden_reason,
-                        extracted_path=str(output_name),
-                        excluded_people=json.dumps([]),
-                    )
-                )
-            session.commit()
+            detect_face_from_loaded(session, image, pil_img)
 
         else:
             log(f"already detected faces for {image_id}")
@@ -401,8 +439,23 @@ def detect_faces():
     with Session(get_engine()) as session:
         images = session.scalars(select(Image))
 
-        for image in images:
-            detect_face(image.id)
+    for image in images:
+        detect_face(image.id)
+
+
+def generate_embedding(session: Session, face: Face, fr_img: npt.NDArray):
+    """
+    fr_image should be an array produced by face_recognition.load_image_file()
+    `face`: A face detected in fr_image, loaded from session
+    """
+
+    log(f"face {face.id}: generate embedding")
+    encoding = face_recognition.face_encodings(
+        fr_img,
+        known_face_locations=[(face.top, face.right, face.bottom, face.left)],
+    )[0]
+
+    face.embedding_bytes = encoding.tobytes()
 
 
 def generate_embeddings():
@@ -422,14 +475,10 @@ def generate_embeddings():
             original_img = face_recognition.load_image_file(
                 IMAGES_DIR / image.file_name
             )
-            encoding = face_recognition.face_encodings(
-                original_img,
-                known_face_locations=[(face.top, face.right, face.bottom, face.left)],
-            )[0]
 
-            face.embedding_bytes = encoding.tobytes()
-            log(f"face {face.id}: store embedding")
-            session.commit()
+            generate_embedding(session, face, original_img)
+        log(f"commit embeddings")
+        session.commit()
 
 
 def remove_empty_people(session: Session):
@@ -629,10 +678,14 @@ def update_labels():
 def add_original(image_path) -> int:
     image_path = Path(image_path)
 
+    # read the file once into memory
+    with open(image_path, "rb") as f:
+        file_data = f.read()
+
     # check if the file is an exact duplicate of one we've seen before
     # this is faster than opening and rendering the image to compare the
     # data, so we can more quickly reject images we've seen before
-    with open(image_path, "rb") as f:
+    with BytesIO(file_data) as f:
         file_hash = utils.hash_file_data(f)
 
     with Session(get_engine()) as session:
@@ -646,17 +699,17 @@ def add_original(image_path) -> int:
     # check if the pixel values are identical to an image we already have
     # this is much slower than hashing the file data directly, but
     # prevents us from adding the same image twice just because the files are not the same
-    with open(image_path, "rb") as file:
+    with BytesIO(file_data) as file:
         pil_img = PilImage.open(file)
-        img_hash = utils.hash_image_data(pil_img)
+        pil_img.load()
+    img_hash = utils.hash_image_data(pil_img)
 
     with Session(get_engine()) as session:
         stmt = select(Image).where(Image.image_hash == img_hash)
 
-        existing = session.scalars(stmt).one_or_none()
-        if existing is not None:
-            log(f"{image_path} image data already present as image {existing.id}")
-            return existing.id
+        img = session.scalars(stmt).one_or_none()
+        if img is not None:
+            log(f"{image_path} image data already present as image {img.id}")
         else:
             # copy file to IMAGES_DIR
             dst_name = Path(f"{img_hash[0:2]}") / f"{img_hash[0:8]}{image_path.suffix}"
@@ -683,7 +736,19 @@ def add_original(image_path) -> int:
             session.add(img)
             session.commit()
 
-            return img.id
+        # opportunistically detect faces since image is loaded
+        fr_img = detect_face_from_loaded(session, img, pil_img)
+
+        # opportunistically create embeddings if face_recognition image was created
+        if fr_img is not None:
+            faces = session.scalars(
+                select(Face).where(Face.image_id == img.id).where(Face.hidden == 0)
+            ).all()
+            for face in faces:
+                generate_embedding(session, face, fr_img)
+        session.commit()
+
+        return img.id
 
 
 def incremental_index():

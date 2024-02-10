@@ -24,6 +24,8 @@ def add_images(paths, cache_dir: str = None):
 
     model.incremental_index()
 
+    # try to detect faces in all images
+    # add_original won't do it if the image has already been added
     with Session(model.get_engine()) as session:
         images = session.scalars(select(model.Image)).all()
         with multiprocessing.Pool(model.CPUS) as p:

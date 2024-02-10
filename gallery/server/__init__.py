@@ -18,12 +18,13 @@ from gallery.server.routes import (
     new_people,
     people,
     person,
+    rescan_originals,
     search,
+    settings,
     upload,
 )
 from gallery import model
 from gallery import config
-
 
 model.init()
 
@@ -38,8 +39,12 @@ app.static("/static/css/", Path(__file__).parent / "css", name="css")
 app.static("/static/image/", model.IMAGES_DIR, name="images")
 app.static("/static/face/", model.FACES_DIR, name="faces")
 app.blueprint(root.bp)
+app.blueprint(delete_image.bp)
+app.blueprint(delete_person.bp)
 app.blueprint(gallery.bp)
-app.blueprint(upload.bp)
+app.blueprint(hide_face.bp_hide)
+app.blueprint(hide_face.bp_unhide)
+app.blueprint(image.bp)
 app.blueprint(label_one.bp)
 app.blueprint(label_many.bp)
 app.blueprint(label.bp)
@@ -48,9 +53,8 @@ app.blueprint(name_person.bp)
 app.blueprint(new_people.bp)
 app.blueprint(people.bp)
 app.blueprint(person.bp)
-app.blueprint(image.bp)
+app.blueprint(rescan_originals.bp)
 app.blueprint(search.bp_get)
 app.blueprint(search.bp_post)
-app.blueprint(delete_image.bp)
-app.blueprint(delete_person.bp)
-app.blueprint(hide_face.bp)
+app.blueprint(settings.bp)
+app.blueprint(upload.bp)
