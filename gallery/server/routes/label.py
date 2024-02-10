@@ -34,17 +34,17 @@ def bp_label(request: Request):
     next_limit = limit
     prev_limit = limit
 
-    # retrieve all faces that are unlabele
+    # retrieve all faces that are unlabeled
+    query = (
+        select(Face)
+        .join(Person, Face.person_id == Person.id)
+        .where(Face.person_source == model.PERSON_SOURCE_AUTOMATIC)
+    )
+    query = query.where(or_(Person.name == "", Face.person_id == None))
+    query = query.where(Face.hidden == False).offset(offset).limit(limit)
+
     with Session(model.get_engine()) as session:
-        faces = session.scalars(
-            select(Face)
-            .join(Person, Face.person_id == Person.id)
-            .where(Face.person_source == model.PERSON_SOURCE_AUTOMATIC)
-            .where(or_(Person.name == "", Face.person_id == None))
-            .where(Face.hidden == False)
-            .offset(offset)
-            .limit(limit)
-        ).all()
+        faces = session.scalars(query).all()
 
         # for each unlabeled face, retrieve the image the face is from
         records = []
