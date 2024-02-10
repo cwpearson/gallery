@@ -92,6 +92,10 @@
         {% if face.person_id %}
         <a href="/person/{{ face.person_id }}">Person {{ face.person_id }}</a>
         {% endif %}
+        <form class="label" action="/api/v1/unhide-face" method="post">
+            <input type="hidden" name="face_id" value="{{ face.id }}" />
+            <input type="submit" value="Unhide Face" />
+        </form>
     </div>
     {% endfor %}
 </div>
